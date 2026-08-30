@@ -121,6 +121,10 @@ def list_outbounds(ctx: click.Context) -> None:
 @click.pass_context
 def test_outbound(ctx: click.Context, name: str) -> None:
     """Test connectivity through an outbound proxy."""
+    import asyncio
+
+    from proxy_tuner.outbounds import OutboundManager
+
     manager: ConfigManager = ctx.obj["config_manager"]
     config = manager.get()
 
@@ -129,22 +133,15 @@ def test_outbound(ctx: click.Context, name: str) -> None:
         raise click.Abort()
 
     ob = config.outbounds[name]
-    if ob.type == "direct":
-        console.print(f"Testing [bold]{name}[/bold] (direct)...")
+    target = f"{ob.type}://{ob.host}:{ob.port}" if ob.type != "direct" else "direct"
+    console.print(f"Testing [bold]{name}[/bold] ({target})...")
 
-        import socket
+    ob_manager = OutboundManager(config=config)
+    result = asyncio.run(ob_manager.test_outbound(name))
 
-        try:
-            sock = socket.create_connection(("1.1.1.1", 80), timeout=5)
-            sock.close()
-            console.print("  Connection: [green]OK[/green]")
-            console.print("  Overall: [green]PASS[/green]")
-        except (socket.timeout, OSError) as e:
-            console.print(f"  Connection: [red]FAIL[/red] — {e}")
-            console.print("  Overall: [red]FAIL[/red]")
-        return
-
-    console.print(f"Testing [bold]{name}[/bold] ({ob.type}://{ob.host}:{ob.port})...")
-
-    # TODO: Phase 3 — implement actual SOCKS5/HTTP proxy test
-    console.print("  [yellow]Proxy testing not yet implemented (Phase 3)[/yellow]")
+    if result.success:
+        console.print(f"  Connection: [green]OK[/green] ({result.latency_ms:.0f}ms)")
+        console.print("  Overall: [green]PASS[/green]")
+    else:
+        console.print(f"  Connection: [red]FAIL[/red] — {result.error}")
+        console.print("  Overall: [red]FAIL[/red]")

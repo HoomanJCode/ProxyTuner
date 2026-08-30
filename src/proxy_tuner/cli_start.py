@@ -138,20 +138,17 @@ def start(ctx: click.Context, foreground: bool, log_level: str | None) -> None:
 
 
 async def _run_loop(manager: ConfigManager, config: object) -> None:
-    """Main async loop — placeholder until Phase 3/4."""
-    from proxy_tuner.platform import create_backend
+    """Main async loop — starts forwarder and waits for shutdown."""
+    from proxy_tuner.forwarder import Forwarder
 
-    backend = create_backend()
+    forwarder = Forwarder(config=config)
     try:
-        await backend.start(
-            local_port=config.settings.listen_port,
-            tun_name=config.settings.tun_name,
-            tun_address=config.settings.tun_address,
-        )
+        await forwarder.start()
         console.print(
             f"  Listening on 127.0.0.1:{config.settings.listen_port}"
         )
-        console.print(f"  TUN: {config.settings.tun_name} ({config.settings.tun_address})")
+        console.print(f"  Rules: {len(config.rules)} loaded")
+        console.print(f"  Outbounds: {len(config.outbounds)} configured")
         console.print("  Press Ctrl+C to stop.")
 
         # Keep running until stopped
@@ -165,7 +162,7 @@ async def _run_loop(manager: ConfigManager, config: object) -> None:
 
         await stop_event.wait()
     finally:
-        await backend.stop()
+        await forwarder.stop()
 
 
 @click.command("stop")
@@ -227,5 +224,3 @@ def status(ctx: click.Context) -> None:
     enabled_count = sum(1 for r in config.rules if r.enabled)
     total_count = len(config.rules)
     console.print(f"Rules: {enabled_count} active / {total_count} total")
-
-    # TODO: Phase 3+ — show live stats (bytes transferred, connections)
