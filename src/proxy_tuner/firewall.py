@@ -98,6 +98,7 @@ class FirewallManager:
         # Mark packets from the local proxy process so they're NOT re-routed
         # (prevents routing loops)
         pid = str(os.getpid()) if hasattr(os, "getpid") else "0"
+        uid = str(os.getuid()) if hasattr(os, "getuid") else "0"
 
         # MARK all traffic (except from our own process) and route through TUN
         # Using mangle table for MARK
@@ -109,7 +110,7 @@ class FirewallManager:
         # Allow traffic from our process through normally (prevent loop)
         self._run([
             "iptables", "-t", "mangle", "-I", "PREROUTING",
-            "-m", "owner", "--uid-owner", str(os.getuid()),
+            "-m", "owner", "--uid-owner", uid,
             "-j", "ACCEPT",
         ])
 
@@ -125,6 +126,7 @@ class FirewallManager:
 
     def _remove_iptables(self) -> None:
         """Remove iptables rules."""
+        uid = str(os.getuid()) if hasattr(os, "getuid") else "0"
         try:
             self._run([
                 "iptables", "-t", "mangle", "-D", "PREROUTING",
@@ -135,7 +137,7 @@ class FirewallManager:
         try:
             self._run([
                 "iptables", "-t", "mangle", "-D", "PREROUTING",
-                "-m", "owner", "--uid-owner", str(os.getuid()),
+                "-m", "owner", "--uid-owner", uid,
                 "-j", "ACCEPT",
             ])
         except subprocess.CalledProcessError:

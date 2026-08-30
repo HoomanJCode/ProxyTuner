@@ -7,7 +7,6 @@ intercepting and redirecting traffic through the proxy forwarder.
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import logging
 import os
 import struct
@@ -65,6 +64,8 @@ class TunManager:
         Returns the file descriptor for reading/writing packets.
         """
         try:
+            import fcntl
+
             # Open /dev/net/tun
             self._fd = os.open("/dev/net/tun", os.O_RDWR | os.O_NONBLOCK)
 
