@@ -106,7 +106,8 @@ def start(ctx: click.Context, foreground: bool, log_level: str | None) -> None:
         config.settings.log_level = log_level
 
     # Setup logging
-    _setup_logging(config.settings.log_level, config.settings.log_file)
+    from proxy_tuner.logging import setup_logging
+    setup_logging(config.settings.log_level, config.settings.log_file)
 
     if foreground:
         console.print("[green]Starting ProxyTuner in foreground...[/green]")
@@ -153,14 +154,36 @@ async def _run_loop(manager: ConfigManager, config: object) -> None:
 
         # Keep running until stopped
         stop_event = asyncio.Event()
+        reload_event = asyncio.Event()
 
         def _handle_signal(sig: int, frame: object) -> None:
             stop_event.set()
 
+        def _handle_reload(sig: int, frame: object) -> None:
+            reload_event.set()
+
         signal.signal(signal.SIGTERM, _handle_signal)
         signal.signal(signal.SIGINT, _handle_signal)
+        if hasattr(signal, "SIGHUP"):
+            signal.signal(signal.SIGHUP, _handle_reload)
 
-        await stop_event.wait()
+        while not stop_event.is_set():
+            # Wait for either stop or reload
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=1.0)
+            except asyncio.TimeoutError:
+                pass
+
+            # Handle reload
+            if reload_event.is_set():
+                reload_event.clear()
+                try:
+                    new_config = manager.load()
+                    forwarder.update_config(new_config)
+                    console.print(f"  [green]Reloaded:[/green] {len(new_config.rules)} rules, {len(new_config.outbounds)} outbounds")
+                except Exception as e:
+                    console.print(f"  [red]Reload failed:[/red] {e}")
+
     finally:
         await forwarder.stop()
 
@@ -224,3 +247,4 @@ def status(ctx: click.Context) -> None:
     enabled_count = sum(1 for r in config.rules if r.enabled)
     total_count = len(config.rules)
     console.print(f"Rules: {enabled_count} active / {total_count} total")
+    console.print(f"Listen port: {config.settings.listen_port}")

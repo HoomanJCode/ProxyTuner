@@ -56,5 +56,43 @@ def version_cmd() -> None:
     Console().print(f"proxy-tuner {__version__}")
 
 
+@main.command("reload")
+@click.pass_context
+def reload(ctx: click.Context) -> None:
+    """Reload configuration (hot-reload while running)."""
+    import os
+    import signal
+
+    manager: ConfigManager = ctx.obj["config_manager"]
+
+    from proxy_tuner.cli_start import _read_pid
+
+    pid = _read_pid(manager)
+    if pid is None:
+        console.print("[yellow]ProxyTuner is not running.[/yellow]")
+        raise click.Abort()
+
+    # Validate new config
+    try:
+        config = manager.load()
+    except Exception as e:
+        console.print(f"[red]Config error:[/red] {e}")
+        raise click.Abort() from e
+
+    errors = config.validate_references()
+    if errors:
+        console.print("[red]Config validation errors:[/red]")
+        for err in errors:
+            console.print(f"  • {err}")
+        raise click.Abort()
+
+    # Send SIGHUP to trigger reload
+    try:
+        os.kill(pid, signal.SIGHUP)
+        console.print(f"[green]✓[/green] Sent reload signal to PID {pid}")
+    except OSError as e:
+        console.print(f"[red]Error:[/red] {e}")
+
+
 if __name__ == "__main__":
     main()
