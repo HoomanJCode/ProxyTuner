@@ -40,9 +40,12 @@ from proxy_tuner.cli_outbound import outbound_group  # noqa: E402
 from proxy_tuner.cli_rule import rule_group  # noqa: E402
 from proxy_tuner.cli_start import start, status, stop  # noqa: E402
 
+from proxy_tuner.completions import completions_group  # noqa: E402
+
 main.add_command(outbound_group)
 main.add_command(rule_group)
 main.add_command(config_group)
+main.add_command(completions_group)
 main.add_command(start)
 main.add_command(stop)
 main.add_command(status)

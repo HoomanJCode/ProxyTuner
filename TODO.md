@@ -51,9 +51,9 @@
 - [x] Implement HTTP proxy listener (accept HTTP CONNECT)
 - [x] Implement SOCKS5 proxy listener
 - [x] Integrate rule engine with forwarder
-- [ ] Implement DNS interception for domain-based rules
+- [x] Implement DNS interception for domain-based rules
 - [x] Implement connection statistics tracking
-- [ ] Implement connection pooling / keepalive
+- [x] Implement connection pooling / keepalive
 - [x] Write unit tests for SOCKS5 client (10 tests)
 - [x] Write unit tests for HTTP CONNECT client (5 tests)
 - [x] Write integration tests for forwarder (7 tests)
@@ -99,8 +99,8 @@
 - [x] Add structured logging framework
 - [x] Add `proxy-tuner config validate` command
 - [x] Add `proxy-tuner version` command
-- [ ] Add shell completions (bash, zsh, fish)
-- [ ] Add GitHub Actions CI/CD
+- [x] Add shell completions (bash, zsh, fish)
+- [x] Add GitHub Actions CI/CD
 - [ ] Publish to PyPI
 
 ## Done
@@ -116,3 +116,5 @@
 - [x] Phase 3 complete: SOCKS5/HTTP forwarding + forwarder + 22 tests (136 total passing)
 - [x] Phase 4 complete: Linux TUN + firewall + 14 tests (150 total passing)
 - [x] Phase 5+6 complete: Windows backend + polish (150 tests passing)
+- [x] Connection pool + DNS interception + CI/CD (173 tests passing)
+- [x] Shell completions + PyPI metadata (180 tests passing)

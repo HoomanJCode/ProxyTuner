@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "proxy-tuner"
 version = "0.1.0"
-description = "Cross-platform CLI tool for routing traffic through multiple proxy outbounds with rule-based routing"
+description = "Cross-platform CLI tool for routing traffic through multiple proxy outbounds with flexible rule-based routing by process, domain, IP, and port"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -48,6 +48,8 @@ proxy-tuner = "proxy_tuner.cli:main"
 
 [project.urls]
 Repository = "https://github.com/HoomanJ/proxy-tuner"
+Documentation = "https://github.com/HoomanJ/proxy-tuner/tree/master/docs"
+Issues = "https://github.com/HoomanJ/proxy-tuner/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
