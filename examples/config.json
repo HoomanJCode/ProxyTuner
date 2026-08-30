@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "outbounds": {
+    "socks-vpn": {
+      "type": "socks5",
+      "host": "127.0.0.1",
+      "port": 1080,
+      "username": null,
+      "password": null,
+      "timeout": 10
+    },
+    "http-proxy": {
+      "type": "http",
+      "host": "192.168.1.1",
+      "port": 8080,
+      "username": "admin",
+      "password": "changeme",
+      "timeout": 15
+    },
+    "fast-relay": {
+      "type": "socks5",
+      "host": "10.0.0.100",
+      "port": 1080,
+      "timeout": 5
+    }
+  },
+  "rules": [
+    {
+      "name": "local-network",
+      "enabled": true,
+      "priority": 1,
+      "outbound": "direct",
+      "match": {
+        "ip_cidr": [
+          "192.168.0.0/16",
+          "10.0.0.0/8",
+          "172.16.0.0/12",
+          "127.0.0.0/8"
+        ]
+      }
+    },
+    {
+      "name": "browsers-vpn",
+      "enabled": true,
+      "priority": 10,
+      "outbound": "socks-vpn",
+      "match": {
+        "process": [
+          "firefox",
+          "chrome",
+          "chromium",
+          "brave",
+          "msedge"
+        ]
+      }
+    },
+    {
+      "name": "blocked-domains",
+      "enabled": true,
+      "priority": 5,
+      "outbound": "socks-vpn",
+      "match": {
+        "domain": [
+          "*.blocked-site.com",
+          "*.restricted.org"
+        ]
+      }
+    },
+    {
+      "name": "cdn-traffic",
+      "enabled": true,
+      "priority": 15,
+      "outbound": "fast-relay",
+      "match": {
+        "domain_regex": [
+          ".*\\.cdn\\..*",
+          ".*\\.cloudfront\\.net$"
+        ]
+      }
+    },
+    {
+      "name": "dev-tools-direct",
+      "enabled": true,
+      "priority": 20,
+      "outbound": "direct",
+      "match": {
+        "process": [
+          "git",
+          "cargo",
+          "npm",
+          "yarn",
+          "pip",
+          "go",
+          "rustup"
+        ]
+      }
+    },
+    {
+      "name": "telegram",
+      "enabled": true,
+      "priority": 10,
+      "outbound": "socks-vpn",
+      "match": {
+        "process": [
+          "telegram-desktop",
+          "Telegram.exe"
+        ]
+      }
+    },
+    {
+      "name": "https-only",
+      "enabled": false,
+      "priority": 50,
+      "outbound": "socks-vpn",
+      "match": {
+        "port": [443]
+      }
+    },
+    {
+      "name": "default",
+      "enabled": true,
+      "priority": 100,
+      "outbound": "http-proxy",
+      "match": {}
+    }
+  ],
+  "settings": {
+    "listen_port": 10808,
+    "tun_name": "proxytun0",
+    "tun_address": "10.0.0.1/24",
+    "dns_intercept": true,
+    "dns_server": "8.8.8.8",
+    "log_level": "info",
+    "log_file": null,
+    "stats_enabled": true,
+    "stats_interval": 60
+  }
+}
