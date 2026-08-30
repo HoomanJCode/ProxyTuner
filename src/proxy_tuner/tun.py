@@ -213,3 +213,36 @@ class TunManager:
             result["dst_port"] = dst_port
 
         return result
+
+
+def get_original_dst(sock: object, family: int = 2) -> tuple[str, int] | None:
+    """Get the original destination of a connection redirected by iptables.
+
+    Uses SO_ORIGINAL_DST (Linux-specific) to retrieve the real destination
+    before iptables REDIRECT changed it.
+
+    Args:
+        sock: Socket object (must have getsockopt method).
+        address family: 2=AF_INET (IPv4), 10=AF_INET6 (IPv6).
+
+    Returns:
+        (ip, port) tuple or None on failure.
+    """
+    try:
+        import ipaddress
+
+        if family == 2:  # AF_INET
+            # SO_ORIGINAL_DST = 80
+            data = sock.getsockopt(80, 16, 16)
+            port = struct.unpack("!H", data[2:4])[0]
+            ip = str(ipaddress.IPv4Address(data[4:8]))
+            return ip, port
+        elif family == 10:  # AF_INET6
+            # SO_ORIGINAL_DST works for IPv6 too on newer kernels
+            data = sock.getsockopt(80, 16, 16)
+            port = struct.unpack("!H", data[2:4])[0]
+            ip = str(ipaddress.IPv6Address(data[8:24]))
+            return ip, port
+    except (OSError, ValueError, struct.error):
+        pass
+    return None

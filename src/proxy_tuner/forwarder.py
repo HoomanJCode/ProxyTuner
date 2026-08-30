@@ -15,7 +15,9 @@ from dataclasses import dataclass, field
 from typing import NamedTuple
 
 from proxy_tuner.config import Config
+from proxy_tuner.dns import DnsResolver
 from proxy_tuner.outbounds import OutboundManager, OutboundError
+from proxy_tuner.pool import ConnectionPool
 from proxy_tuner.rules import ConnectionInfo, RuleEngine
 from proxy_tuner.socks5 import (
     SOCKS5_VERSION,
@@ -67,12 +69,15 @@ class Forwarder:
     config: Config = field(default_factory=Config)
     rule_engine: RuleEngine = field(default_factory=lambda: RuleEngine(Config()))
     outbound_manager: OutboundManager = field(default_factory=OutboundManager)
+    pool: ConnectionPool = field(default_factory=ConnectionPool)
+    dns: DnsResolver = field(default_factory=DnsResolver)
     stats: ForwarderStats = field(default_factory=ForwarderStats)
     _server: asyncio.Server | None = None
     _running: bool = False
 
     def __post_init__(self) -> None:
         self.rule_engine = RuleEngine(self.config)
+        self.dns = DnsResolver(dns_server=self.config.settings.dns_server if self.config.settings.dns_intercept else None)
         self.outbound_manager = OutboundManager(config=self.config)
 
     def update_config(self, config: Config) -> None:
@@ -93,11 +98,14 @@ class Forwarder:
         )
         self._running = True
         self.stats.started_at = time.time()
+        self.pool.start_cleanup()
         logger.info("Forwarder listening on %s:%d", host, port)
 
     async def stop(self) -> None:
-        """Stop accepting new connections."""
+        """Stop accepting new connections and clean up."""
         self._running = False
+        self.pool.stop_cleanup()
+        await self.pool.close_all()
         if self._server:
             self._server.close()
             await self._server.wait_closed()

@@ -9,7 +9,7 @@ import struct
 
 import pytest
 
-from proxy_tuner.tun import TunManager
+from proxy_tuner.tun import TunManager, get_original_dst
 
 
 class TestIPHeaderParsing:
@@ -144,3 +144,32 @@ class TestCIDRConversion:
         assert TunManager._cidr_to_prefix("8") == 8
         assert TunManager._cidr_to_prefix("32") == 32
         assert TunManager._cidr_to_prefix("16") == 16
+
+
+class TestOriginalDst:
+    def test_get_original_dst_with_mock_socket(self) -> None:
+        """Test SO_ORIGINAL_DST with a mock socket."""
+        import ipaddress
+
+        # Build expected response: 0, 0, port(2 bytes), ip(4 bytes)
+        port = 80
+        ip = ipaddress.IPv4Address("93.184.216.34")
+        data = struct.pack("!BB", 0, 0) + struct.pack("!H", port) + ip.packed + b"\x00" * 8
+
+        class MockSocket:
+            def getsockopt(self, level: int, optname: int, buflen: int) -> bytes:
+                return data
+
+        result = get_original_dst(MockSocket(), family=2)
+        assert result is not None
+        assert result[0] == "93.184.216.34"
+        assert result[1] == 80
+
+    def test_get_original_dst_failure(self) -> None:
+        """Test SO_ORIGINAL_DST with failing socket."""
+        class FailingSocket:
+            def getsockopt(self, level: int, optname: int, buflen: int) -> bytes:
+                raise OSError("not supported")
+
+        result = get_original_dst(FailingSocket(), family=2)
+        assert result is None

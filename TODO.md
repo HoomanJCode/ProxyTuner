@@ -72,10 +72,10 @@
 - [x] Implement iptables rule cleanup
 - [x] Implement per-process matching via uid-owner
 - [x] Implement `/proc/net/tcp` lookup for real destination
-- [ ] Implement `SO_ORIGINAL_DST` retrieval
+- [x] Implement `SO_ORIGINAL_DST` retrieval
 - [x] Implement start/stop lifecycle
-- [ ] Implement DNS interception via nftables
-- [ ] Implement graceful shutdown (signal handling)
+- [x] Implement graceful shutdown (signal handling in cli_start.py)
+- [ ] DNS interception via nftables (deferred to nftables backend)
 - [x] Write unit tests for TUN IP parsing (7 tests)
 - [x] Write unit tests for firewall management (7 tests)
 - [ ] Integration tests (requires root)
@@ -118,3 +118,4 @@
 - [x] Phase 5+6 complete: Windows backend + polish (150 tests passing)
 - [x] Connection pool + DNS interception + CI/CD (173 tests passing)
 - [x] Shell completions + PyPI metadata (180 tests passing)
+- [x] SO_ORIGINAL_DST + pool/DNS integration (182 tests passing)
