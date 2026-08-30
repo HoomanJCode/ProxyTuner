@@ -53,7 +53,8 @@ def setup_wizard(ctx: click.Context) -> None:
         # Step 2: Proxy details
         console.print("\n[bold]Step 2: Proxy server details[/bold]")
         proxy_host = click.prompt("Proxy host", default="127.0.0.1")
-        proxy_port = click.prompt("Proxy port", type=int, default=1080 if proxy_type == "socks5" else 8080)
+        default_port = 1080 if proxy_type == "socks5" else 8080
+        proxy_port = click.prompt("Proxy port", type=int, default=default_port)
 
         use_auth = click.confirm("Does the proxy require authentication?", default=False)
         username = None
@@ -150,6 +151,7 @@ def setup_wizard(ctx: click.Context) -> None:
     console.print(table)
 
     console.print("\n[bold]Next steps:[/bold]")
-    console.print(f"  1. Configure your apps to use SOCKS5/HTTP proxy at 127.0.0.1:{config.settings.listen_port}")
+    port = config.settings.listen_port
+    console.print(f"  1. Configure your apps to use SOCKS5/HTTP proxy at 127.0.0.1:{port}")
     console.print("  2. Start ProxyTuner: [bold]sudo proxy-tuner start[/bold]")
     console.print("  3. Check status: [bold]proxy-tuner status[/bold]")

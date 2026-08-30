@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import click
 from rich.console import Console
 from rich.table import Table
@@ -13,14 +11,14 @@ from proxy_tuner.config import ConfigManager, MatchCondition, Rule
 console = Console()
 
 
-def _parse_list(value: Optional[str]) -> list[str]:
+def _parse_list(value: str | None) -> list[str]:
     """Parse a comma-separated string into a list, stripping whitespace."""
     if not value:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-def _parse_int_list(value: Optional[str]) -> list[int]:
+def _parse_int_list(value: str | None) -> list[int]:
     """Parse a comma-separated string of ints into a list."""
     if not value:
         return []
@@ -45,22 +43,23 @@ def rule_group() -> None:
 @click.option("--port", "port_str", default=None, help="Port(s), comma-separated")
 @click.option("--port-range", default=None, help="Port range(s), comma-separated (e.g., 8000-9000)")
 @click.option("--url-regex", default=None, help="URL regex pattern(s), comma-separated")
-@click.option("--priority", default=50, type=int, show_default=True, help="Rule priority (lower = higher)")
+@click.option("--priority", default=50, type=int, show_default=True,
+              help="Rule priority (lower = higher)")
 @click.pass_context
 def add_rule(
     ctx: click.Context,
     name: str,
     outbound: str,
-    process_names: Optional[str],
-    process_path: Optional[str],
-    domain: Optional[str],
-    domain_regex: Optional[str],
-    ip: Optional[str],
-    ip_cidr: Optional[str],
-    ip_regex: Optional[str],
-    port_str: Optional[str],
-    port_range: Optional[str],
-    url_regex: Optional[str],
+    process_names: str | None,
+    process_path: str | None,
+    domain: str | None,
+    domain_regex: str | None,
+    ip: str | None,
+    ip_cidr: str | None,
+    ip_regex: str | None,
+    port_str: str | None,
+    port_range: str | None,
+    url_regex: str | None,
     priority: int,
 ) -> None:
     """Add a new routing rule."""
@@ -209,10 +208,10 @@ def disable_rule(ctx: click.Context, name: str) -> None:
 def test_rule(
     ctx: click.Context,
     name: str,
-    process_name: Optional[str],
-    domain: Optional[str],
-    ip: Optional[str],
-    port_val: Optional[int],
+    process_name: str | None,
+    domain: str | None,
+    ip: str | None,
+    port_val: int | None,
 ) -> None:
     """Test if a target matches a rule."""
     from proxy_tuner.rules import ConnectionInfo, RuleEngine

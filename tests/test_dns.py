@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from proxy_tuner.dns import DnsCache, DnsResolver
 
 

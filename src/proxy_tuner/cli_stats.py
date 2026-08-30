@@ -6,8 +6,6 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from proxy_tuner.config import ConfigManager
-
 console = Console()
 
 
@@ -17,7 +15,6 @@ console = Console()
 def stats(ctx: click.Context, reset: bool) -> None:
     """Show connection statistics per outbound."""
     import json
-    from pathlib import Path
 
     from proxy_tuner.config import get_config_dir
 
@@ -36,7 +33,7 @@ def stats(ctx: click.Context, reset: bool) -> None:
         return
 
     try:
-        with open(stats_file, "r") as f:
+        with open(stats_file) as f:
             data = json.load(f)
     except Exception as e:
         console.print(f"[red]Error reading stats:[/red] {e}")

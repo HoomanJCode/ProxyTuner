@@ -8,28 +8,28 @@ appropriate outbound.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import struct
 import time
 from dataclasses import dataclass, field
-from typing import NamedTuple
 
 from proxy_tuner.config import Config
 from proxy_tuner.dns import DnsResolver
-from proxy_tuner.outbounds import OutboundManager, OutboundError
+from proxy_tuner.outbounds import OutboundError, OutboundManager
 from proxy_tuner.pool import ConnectionPool
 from proxy_tuner.rules import ConnectionInfo, RuleEngine
 from proxy_tuner.socks5 import (
-    SOCKS5_VERSION,
-    SOCKS5_ATYP_IPV4,
     SOCKS5_ATYP_DOMAIN,
+    SOCKS5_ATYP_IPV4,
     SOCKS5_ATYP_IPV6,
     SOCKS5_CMD_CONNECT,
-    SOCKS5_REP_SUCCESS,
-    SOCKS5_REP_GENERAL_FAILURE,
     SOCKS5_REP_CONNECTION_REFUSED,
+    SOCKS5_REP_GENERAL_FAILURE,
     SOCKS5_REP_HOST_UNREACHABLE,
     SOCKS5_REP_NET_UNREACHABLE,
+    SOCKS5_REP_SUCCESS,
+    SOCKS5_VERSION,
 )
 
 logger = logging.getLogger("proxy_tuner.forwarder")
@@ -77,7 +77,9 @@ class Forwarder:
 
     def __post_init__(self) -> None:
         self.rule_engine = RuleEngine(self.config)
-        self.dns = DnsResolver(dns_server=self.config.settings.dns_server if self.config.settings.dns_intercept else None)
+        dns_srv = self.config.settings.dns_server
+        dns_on = self.config.settings.dns_intercept
+        self.dns = DnsResolver(dns_server=dns_srv if dns_on else None)
         self.outbound_manager = OutboundManager(config=self.config)
 
     def update_config(self, config: Config) -> None:
@@ -154,10 +156,8 @@ class Forwarder:
         finally:
             self.stats.active_connections -= 1
             client_writer.close()
-            try:
+            with contextlib.suppress(Exception):
                 await client_writer.wait_closed()
-            except Exception:
-                pass
 
     async def _handle_socks5(
         self,
@@ -177,7 +177,7 @@ class Forwarder:
         nmethods = nmethods_data[0]
 
         # Read auth methods
-        methods = await asyncio.wait_for(client_reader.readexactly(nmethods), timeout=30)
+        await asyncio.wait_for(client_reader.readexactly(nmethods), timeout=30)
 
         # Reply: no auth required (we handle auth at outbound level)
         client_writer.write(struct.pack("!BB", SOCKS5_VERSION, 0x00))
@@ -189,7 +189,10 @@ class Forwarder:
 
         if ver != SOCKS5_VERSION or cmd != SOCKS5_CMD_CONNECT:
             # Send error
-            client_writer.write(struct.pack("!BBBB", SOCKS5_VERSION, 0x07, 0x00, 0x01) + b"\x00" * 6)
+            error_reply = struct.pack(
+                "!BBBB", SOCKS5_VERSION, 0x07, 0x00, 0x01
+            ) + b"\x00" * 6
+            client_writer.write(error_reply)
             await client_writer.drain()
             return
 
@@ -351,7 +354,10 @@ class Forwarder:
                 await client_writer.drain()
 
             # Bidirectional data relay
-            await self._relay(client_reader, client_writer, remote_reader, remote_writer, outbound_name)
+            await self._relay(
+                client_reader, client_writer,
+                remote_reader, remote_writer, outbound_name,
+            )
 
         except OutboundError as e:
             logger.error("Outbound error for %s:%d: %s", target_host, target_port, e)
@@ -439,7 +445,5 @@ class Forwarder:
 
         finally:
             remote_writer.close()
-            try:
+            with contextlib.suppress(Exception):
                 await remote_writer.wait_closed()
-            except Exception:
-                pass

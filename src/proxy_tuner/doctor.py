@@ -144,14 +144,18 @@ def _check_windivert() -> Check:
         return c
 
     try:
-        import pydivert
+        import pydivert  # noqa: F401
         c.ok("pydivert available")
     except ImportError:
         try:
+            import ctypes
             ctypes.WinDLL("WinDivert.dll")
             c.ok("WinDivert.dll available")
         except Exception:
-            c.fail("Not available", "Install from https://reqrypt.org/windivert.html")
+            c.fail(
+                "Not available",
+                "Install from https://reqrypt.org/windivert.html",
+            )
     return c
 
 
@@ -199,4 +203,5 @@ def doctor() -> None:
     if failed == 0:
         console.print("[green]All checks passed![/green]")
     else:
-        console.print("[yellow]Some checks failed. Fix the issues above to use ProxyTuner.[/yellow]")
+        msg = "[yellow]Some checks failed. "
+        console.print(msg + "Fix the issues above to use ProxyTuner.[/yellow]")

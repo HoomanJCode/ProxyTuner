@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import struct
 
-import pytest
-
 from proxy_tuner.tun import TunManager, get_original_dst
 
 

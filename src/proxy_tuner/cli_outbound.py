@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 import click
 from rich.console import Console
 from rich.table import Table
@@ -25,7 +23,8 @@ def outbound_group() -> None:
 @click.option("--port", required=True, type=int, help="Proxy server port")
 @click.option("--username", default=None, help="Proxy auth username")
 @click.option("--password", default=None, help="Proxy auth password")
-@click.option("--timeout", default=10, type=int, show_default=True, help="Connection timeout in seconds")
+@click.option("--timeout", default=10, type=int, show_default=True,
+              help="Connection timeout in seconds")
 @click.pass_context
 def add_outbound(
     ctx: click.Context,
@@ -33,8 +32,8 @@ def add_outbound(
     outbound_type: str,
     host: str,
     port: int,
-    username: Optional[str],
-    password: Optional[str],
+    username: str | None,
+    password: str | None,
     timeout: int,
 ) -> None:
     """Add a new proxy outbound."""

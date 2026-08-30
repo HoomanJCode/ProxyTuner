@@ -6,7 +6,9 @@ traffic to the TUN interface for transparent proxying.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import subprocess
 from dataclasses import dataclass
 
@@ -84,20 +86,15 @@ class FirewallManager:
     def _remove_routing(self) -> None:
         """Remove routing rules."""
         table_id = 100
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             self._run(["ip", "rule", "del", "fwmark", "0x1", "lookup", str(table_id)])
-        except subprocess.CalledProcessError:
-            pass
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             self._run(["ip", "route", "flush", "table", str(table_id)])
-        except subprocess.CalledProcessError:
-            pass
 
     def _setup_iptables(self) -> None:
         """Set up iptables rules for traffic interception."""
         # Mark packets from the local proxy process so they're NOT re-routed
         # (prevents routing loops)
-        pid = str(os.getpid()) if hasattr(os, "getpid") else "0"
         uid = str(os.getuid()) if hasattr(os, "getuid") else "0"
 
         # MARK all traffic (except from our own process) and route through TUN
@@ -127,29 +124,23 @@ class FirewallManager:
     def _remove_iptables(self) -> None:
         """Remove iptables rules."""
         uid = str(os.getuid()) if hasattr(os, "getuid") else "0"
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             self._run([
                 "iptables", "-t", "mangle", "-D", "PREROUTING",
                 "-j", "MARK", "--set-mark", "0x1",
             ])
-        except subprocess.CalledProcessError:
-            pass
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             self._run([
                 "iptables", "-t", "mangle", "-D", "PREROUTING",
                 "-m", "owner", "--uid-owner", uid,
                 "-j", "ACCEPT",
             ])
-        except subprocess.CalledProcessError:
-            pass
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             self._run([
                 "iptables", "-t", "nat", "-D", "PREROUTING",
                 "-p", "tcp", "--syn",
                 "-j", "REDIRECT", "--to-port", str(self.listen_port),
             ])
-        except subprocess.CalledProcessError:
-            pass
 
     def add_uid_rule(self, uid: int) -> None:
         """Add a rule to route traffic from a specific UID through the TUN."""
@@ -166,19 +157,16 @@ class FirewallManager:
 
     def remove_uid_rule(self, uid: int) -> None:
         """Remove a UID-based routing rule."""
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError):
             self._run([
                 "iptables", "-t", "mangle", "-D", "PREROUTING",
                 "-m", "owner", "--uid-owner", str(uid),
                 "-j", "MARK", "--set-mark", "0x1",
             ])
-        except subprocess.CalledProcessError:
-            pass
 
     def is_setup(self) -> bool:
         """Check if firewall rules are currently active."""
         return self._rules_added
 
 
-# Need os for getuid
-import os
+

@@ -7,6 +7,7 @@ reducing connection overhead for repeated requests.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
@@ -111,14 +112,12 @@ class ConnectionPool:
         except (NotImplementedError, AttributeError):
             pass  # Mock transports
         # Check idle timeout
-        if time.time() - conn.last_used > self.max_idle_seconds:
-            return False
-        return True
+        return not time.time() - conn.last_used > self.max_idle_seconds
 
     async def close_all(self) -> None:
         """Close all pooled connections."""
         async with self._lock:
-            for key, conns in self._pools.items():
+            for _key, conns in self._pools.items():
                 for conn in conns:
                     try:
                         conn.writer.close()
@@ -140,10 +139,8 @@ class ConnectionPool:
                         if self._is_alive(conn):
                             alive.append(conn)
                         else:
-                            try:
+                            with contextlib.suppress(Exception):
                                 conn.writer.close()
-                            except Exception:
-                                pass
                     if alive:
                         self._pools[key] = alive
                     else:

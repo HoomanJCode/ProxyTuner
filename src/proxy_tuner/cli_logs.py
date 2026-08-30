@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import click
 from rich.console import Console
-from rich.table import Table
-
-from proxy_tuner.config import ConfigManager
 
 console = Console()
 
@@ -17,9 +14,6 @@ console = Console()
 @click.pass_context
 def logs(ctx: click.Context, lines: int, follow: bool) -> None:
     """View ProxyTuner logs."""
-    import os
-    import sys
-    from pathlib import Path
 
     from proxy_tuner.config import get_config_dir
 
@@ -33,7 +27,7 @@ def logs(ctx: click.Context, lines: int, follow: bool) -> None:
 
         console.print(f"[dim]Following {log_file} (Ctrl+C to stop)[/dim]")
         try:
-            with open(log_file, "r") as f:
+            with open(log_file) as f:
                 # Seek to end minus some bytes
                 f.seek(0, 2)
                 size = f.tell()
@@ -53,10 +47,11 @@ def logs(ctx: click.Context, lines: int, follow: bool) -> None:
         # Show last N lines
         if not log_file.exists():
             console.print(f"[yellow]No log file found at {log_file}[/yellow]")
-            console.print("[dim]Logs are written when running with --log-file or in daemon mode[/dim]")
+            msg = "[dim]Logs are written when running with "
+            console.print(msg + "--log-file or in daemon mode[/dim]")
             return
 
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             all_lines = f.readlines()
             recent = all_lines[-lines:]
             for line in recent:

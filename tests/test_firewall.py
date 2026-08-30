@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from proxy_tuner.firewall import FirewallManager
+from proxy_tuner.firewall import FirewallError, FirewallManager
 
 
 class TestFirewallManager:
@@ -87,6 +87,9 @@ class TestFirewallManager:
         import subprocess
 
         fm = FirewallManager()
-        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "ip")):
-            with pytest.raises(Exception):
-                fm.setup()
+        with (
+            patch("subprocess.run",
+                  side_effect=subprocess.CalledProcessError(1, "ip")),
+            pytest.raises(FirewallError),
+        ):
+            fm.setup()

@@ -7,11 +7,11 @@ intercepting and redirecting traffic through the proxy forwarder.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import struct
 import subprocess
-from pathlib import Path
 
 logger = logging.getLogger("proxy_tuner.tun")
 
@@ -113,28 +113,22 @@ class TunManager:
 
         if self._read_task and not self._read_task.done():
             self._read_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._read_task
-            except asyncio.CancelledError:
-                pass
 
         if self._fd is not None:
-            try:
+            with contextlib.suppress(OSError):
                 os.close(self._fd)
-            except OSError:
-                pass
             self._fd = None
 
         # Remove the interface
-        try:
+        with contextlib.suppress(subprocess.CalledProcessError, FileNotFoundError):
             subprocess.run(
                 ["ip", "link", "del", self.device_name],
                 check=True,
                 capture_output=True,
                 timeout=5,
             )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            pass
 
         logger.info("TUN interface %s closed", self.device_name)
 
@@ -202,12 +196,9 @@ class TunManager:
         }
 
         # Parse TCP/UDP ports if applicable
-        if protocol == IPPROTO_TCP and len(data) >= ihl + 4:
-            src_port = struct.unpack("!H", data[ihl:ihl + 2])[0]
-            dst_port = struct.unpack("!H", data[ihl + 2:ihl + 4])[0]
-            result["src_port"] = src_port
-            result["dst_port"] = dst_port
-        elif protocol == IPPROTO_UDP and len(data) >= ihl + 4:
+        tcp_ok = protocol == IPPROTO_TCP and len(data) >= ihl + 4
+        udp_ok = protocol == IPPROTO_UDP and len(data) >= ihl + 4
+        if tcp_ok or udp_ok:
             src_port = struct.unpack("!H", data[ihl:ihl + 2])[0]
             dst_port = struct.unpack("!H", data[ihl + 2:ihl + 4])[0]
             result["src_port"] = src_port

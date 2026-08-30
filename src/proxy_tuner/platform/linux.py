@@ -7,6 +7,7 @@ and resolves process ownership for per-process routing.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 from pathlib import Path
@@ -67,10 +68,8 @@ class LinuxBackend(PlatformBackend):
         # Cancel forwarding task
         if self._forwarder_task and not self._forwarder_task.done():
             self._forwarder_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._forwarder_task
-            except asyncio.CancelledError:
-                pass
 
         # Remove firewall rules
         if self._firewall:

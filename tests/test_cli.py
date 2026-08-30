@@ -8,7 +8,6 @@ import pytest
 from click.testing import CliRunner
 
 from proxy_tuner.cli import main
-from proxy_tuner.config import ConfigManager
 
 
 @pytest.fixture

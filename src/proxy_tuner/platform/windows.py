@@ -9,9 +9,9 @@ Dependencies: pydivert (pip install pydivert) or ctypes bindings.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ctypes
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -95,16 +95,12 @@ class WindowsBackend(PlatformBackend):
 
         if self._forwarder_task and not self._forwarder_task.done():
             self._forwarder_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._forwarder_task
-            except asyncio.CancelledError:
-                pass
 
         if self._handle is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._handle.close()
-            except Exception:
-                pass
             self._handle = None
 
         logger.info("Windows backend stopped")
@@ -177,10 +173,10 @@ class WindowsBackend(PlatformBackend):
                 row = buffer[offset : offset + 24]
 
                 # State, local addr/port, remote addr/port, OwningPid
-                state = int.from_bytes(row[0:4], "little")
-                local_addr = int.from_bytes(row[4:8], "little")
+                int.from_bytes(row[0:4], "little")
+                int.from_bytes(row[4:8], "little")
                 local_port = int.from_bytes(row[8:10], "big")
-                remote_addr = int.from_bytes(row[12:16], "little")
+                int.from_bytes(row[12:16], "little")
                 remote_port = int.from_bytes(row[16:18], "big")
                 pid = int.from_bytes(row[20:24], "little")
 
@@ -203,8 +199,8 @@ class WindowsBackend(PlatformBackend):
 
             kernel32 = ctypes.WinDLL("kernel32.dll")
 
-            PROCESS_QUERY_INFORMATION = 0x0400
-            PROCESS_VM_READ = 0x0010
+            PROCESS_QUERY_INFORMATION = 0x0400  # noqa: N806
+            PROCESS_VM_READ = 0x0010  # noqa: N806
 
             handle = kernel32.OpenProcess(
                 PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,

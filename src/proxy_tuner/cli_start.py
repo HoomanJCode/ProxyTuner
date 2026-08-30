@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import signal
 import sys
@@ -169,10 +170,8 @@ async def _run_loop(manager: ConfigManager, config: object) -> None:
 
         while not stop_event.is_set():
             # Wait for either stop or reload
-            try:
+            with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(stop_event.wait(), timeout=1.0)
-            except asyncio.TimeoutError:
-                pass
 
             # Handle reload
             if reload_event.is_set():
@@ -180,7 +179,11 @@ async def _run_loop(manager: ConfigManager, config: object) -> None:
                 try:
                     new_config = manager.load()
                     forwarder.update_config(new_config)
-                    console.print(f"  [green]Reloaded:[/green] {len(new_config.rules)} rules, {len(new_config.outbounds)} outbounds")
+                    n_rules = len(new_config.rules)
+                    n_outs = len(new_config.outbounds)
+                    console.print(
+                        f"  [green]Reloaded:[/green] {n_rules} rules, {n_outs} outbounds"
+                    )
                 except Exception as e:
                     console.print(f"  [red]Reload failed:[/red] {e}")
 
@@ -215,7 +218,6 @@ def status(ctx: click.Context) -> None:
     manager: ConfigManager = ctx.obj["config_manager"]
     pid = _read_pid(manager)
 
-    from proxy_tuner import __version__
     from rich.table import Table
 
     if pid is None:
@@ -271,4 +273,5 @@ def status(ctx: click.Context) -> None:
 
     enabled_count = sum(1 for r in config.rules if r.enabled)
     total_count = len(config.rules)
-    console.print(f"Listen port: {config.settings.listen_port} | Rules: {enabled_count} active / {total_count} total")
+    port = config.settings.listen_port
+    console.print(f"Listen port: {port} | Rules: {enabled_count} active / {total_count} total")

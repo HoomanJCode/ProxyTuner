@@ -36,10 +36,7 @@ class DnsCache:
 
     def put(self, hostname: str, ip: str, ttl: float | None = None) -> None:
         """Store a DNS resolution in the cache."""
-        if ttl is not None:
-            expires_at = time.time() + ttl
-        else:
-            expires_at = time.time() + self.default_ttl
+        expires_at = time.time() + ttl if ttl is not None else time.time() + self.default_ttl
         self._cache[hostname] = (ip, expires_at)
 
     def remove(self, hostname: str) -> None:
@@ -92,7 +89,7 @@ class DnsResolver:
         try:
             socket.inet_aton(hostname)
             return hostname
-        except socket.error:
+        except OSError:
             pass
 
         # Check cache

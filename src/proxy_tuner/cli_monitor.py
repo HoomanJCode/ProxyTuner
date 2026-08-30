@@ -6,10 +6,8 @@ import time
 
 import click
 from rich.console import Console
-from rich.table import Table
 from rich.live import Live
-
-from proxy_tuner.config import ConfigManager
+from rich.table import Table
 
 console = Console()
 
@@ -28,7 +26,6 @@ def _format_bytes(n: int) -> str:
 def monitor(ctx: click.Context, interval: int) -> None:
     """Live monitoring dashboard."""
     import json
-    from pathlib import Path
 
     from proxy_tuner.config import get_config_dir
 
@@ -58,7 +55,7 @@ def monitor(ctx: click.Context, interval: int) -> None:
         data = {}
         if stats_file.exists():
             try:
-                with open(stats_file, "r") as f:
+                with open(stats_file) as f:
                     data = json.load(f)
             except Exception:
                 pass
@@ -78,7 +75,8 @@ def monitor(ctx: click.Context, interval: int) -> None:
         return table
 
     try:
-        with Live(_build_table(), refresh_per_second=1 // max(interval, 1), console=console) as live:
+        refresh = 1 // max(interval, 1)
+        with Live(_build_table(), refresh_per_second=refresh, console=console) as live:
             while True:
                 time.sleep(interval)
                 live.update(_build_table())

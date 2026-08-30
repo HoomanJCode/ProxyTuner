@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from proxy_tuner.config import Config, MatchCondition, Rule
 from proxy_tuner.rules import CompiledMatch, CompiledRule, ConnectionInfo, RuleEngine
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,7 +93,8 @@ class TestProcessMatching:
 class TestProcessPathMatching:
     def test_exact_path(self) -> None:
         config = _make_config([
-            Rule(name="r1", outbound="direct", match=MatchCondition(process_path=["/usr/bin/firefox"])),
+            Rule(name="r1", outbound="direct",
+                 match=MatchCondition(process_path=["/usr/bin/firefox"])),
         ])
         engine = RuleEngine(config)
         assert engine.evaluate(_conn(process_path="/usr/bin/firefox")) == "direct"
@@ -347,7 +345,8 @@ class TestPortRangeMatching:
 
     def test_multiple_ranges(self) -> None:
         config = _make_config([
-            Rule(name="r1", outbound="direct", match=MatchCondition(port_range=["1000-2000", "8000-9000"])),
+            Rule(name="r1", outbound="direct",
+                 match=MatchCondition(port_range=["1000-2000", "8000-9000"])),
         ])
         engine = RuleEngine(config)
         assert engine.evaluate(_conn(dst_port=1500)) == "direct"
@@ -442,8 +441,10 @@ class TestANDCombination:
 class TestPriority:
     def test_first_match_wins(self) -> None:
         config = _make_config([
-            Rule(name="low-pri", priority=100, outbound="direct", match=MatchCondition()),
-            Rule(name="high-pri", priority=10, outbound="direct", match=MatchCondition(process=["firefox"])),
+            Rule(name="low-pri", priority=100, outbound="direct",
+                 match=MatchCondition()),
+            Rule(name="high-pri", priority=10, outbound="direct",
+                 match=MatchCondition(process=["firefox"])),
         ])
         engine = RuleEngine(config)
         result = engine.evaluate_rules(_conn(process_name="firefox"))
@@ -452,9 +453,12 @@ class TestPriority:
 
     def test_priority_ordering(self) -> None:
         config = _make_config([
-            Rule(name="third", priority=30, outbound="direct", match=MatchCondition()),
-            Rule(name="first", priority=10, outbound="direct", match=MatchCondition(process=["firefox"])),
-            Rule(name="second", priority=20, outbound="direct", match=MatchCondition(domain=["*.com"])),
+            Rule(name="third", priority=30, outbound="direct",
+                 match=MatchCondition()),
+            Rule(name="first", priority=10, outbound="direct",
+                 match=MatchCondition(process=["firefox"])),
+            Rule(name="second", priority=20, outbound="direct",
+                 match=MatchCondition(domain=["*.com"])),
         ])
         engine = RuleEngine(config)
 
@@ -513,14 +517,16 @@ class TestCatchAll:
 class TestEngineUpdate:
     def test_update_rebuilds_rules(self) -> None:
         config = _make_config([
-            Rule(name="r1", priority=10, outbound="direct", match=MatchCondition(process=["firefox"])),
+            Rule(name="r1", priority=10, outbound="direct",
+                 match=MatchCondition(process=["firefox"])),
         ])
         engine = RuleEngine(config)
         assert engine.evaluate(_conn(process_name="firefox")) == "direct"
 
         # Update config with different rules
         new_config = _make_config([
-            Rule(name="r2", priority=10, outbound="direct", match=MatchCondition(process=["chrome"])),
+            Rule(name="r2", priority=10, outbound="direct",
+                 match=MatchCondition(process=["chrome"])),
         ])
         engine.update(new_config)
         assert engine.evaluate(_conn(process_name="firefox")) is None

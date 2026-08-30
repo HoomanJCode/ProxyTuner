@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from proxy_tuner.http_proxy import _build_connect_request
 
 

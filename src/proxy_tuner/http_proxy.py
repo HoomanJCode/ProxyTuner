@@ -115,7 +115,9 @@ async def http_connect(
         try:
             status_code = int(parts[1])
         except ValueError:
-            raise HttpProxyError(f"Invalid status code: {parts[1]}")
+            raise HttpProxyError(
+                f"Invalid status code: {parts[1]}"
+            ) from None
 
         if status_code == 407:
             raise HttpProxyAuthError("Proxy authentication required")
@@ -129,7 +131,10 @@ async def http_connect(
             if header_line == b"\r\n" or header_line == b"\n" or header_line == b"":
                 break
 
-        return HttpProxyConnection(reader=reader, writer=writer, status_code=status_code, status_line=status_line)
+        return HttpProxyConnection(
+            reader=reader, writer=writer,
+            status_code=status_code, status_line=status_line,
+        )
 
     except Exception:
         writer.close()

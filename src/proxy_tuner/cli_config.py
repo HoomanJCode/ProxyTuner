@@ -57,7 +57,8 @@ def edit_config(ctx: click.Context) -> None:
         subprocess.run([editor, str(manager.path)], check=True)
         console.print(f"[green]✓[/green] Config edited at {manager.path}")
     except FileNotFoundError:
-        console.print(f"[red]Error:[/red] Editor '{editor}' not found. Set $EDITOR or use 'config show'.")
+        msg = f"[red]Error:[/red] Editor '{editor}' not found."
+        console.print(msg + " Set $EDITOR or use 'config show'.")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error:[/red] Editor exited with code {e.returncode}")
 
@@ -119,7 +120,8 @@ def set_config(ctx: click.Context, key: str, value: str) -> None:
     # Parse the key path
     parts = key.split(".")
     if len(parts) < 2:
-        console.print("[red]Error:[/red] Key must be in format 'section.field' (e.g., settings.listen_port)")
+        msg = "[red]Error:[/red] Key must be in format 'section.field'"
+        console.print(f"{msg} (e.g., settings.listen_port)")
         raise click.Abort()
 
     section = parts[0]

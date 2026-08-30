@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import time
 
-import pytest
-
 from proxy_tuner.pool import ConnectionPool
 
 
@@ -99,7 +97,10 @@ class TestConnectionPool:
             transport = asyncio.Transport()
             writer = asyncio.StreamWriter(transport, protocol, reader, asyncio.get_event_loop())
 
-            conn = PooledConnection(reader=reader, writer=writer, created_at=now - 100, last_used=now - 100)
+            conn = PooledConnection(
+                reader=reader, writer=writer,
+                created_at=now - 100, last_used=now - 100,
+            )
             assert pool._is_alive(conn) is False
 
         asyncio.run(_test())
@@ -108,7 +109,7 @@ class TestConnectionPool:
         async def _test() -> None:
             pool = ConnectionPool(max_size=2)
 
-            for i in range(4):
+            for _i in range(4):
                 reader = asyncio.StreamReader()
                 protocol = asyncio.StreamReaderProtocol(reader)
                 transport = asyncio.Transport()

@@ -11,11 +11,9 @@ import os
 import re
 import stat
 import sys
-from copy import deepcopy
-from dataclasses import dataclass, field, fields, asdict
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import Any, Literal, get_args
-
+from typing import Any, Literal
 
 # ---------------------------------------------------------------------------
 # Outbound models
@@ -311,7 +309,7 @@ class ConfigManager:
             self.save(config)
             return config
 
-        with open(self._path, "r", encoding="utf-8") as f:
+        with open(self._path, encoding="utf-8") as f:
             raw = json.load(f)
 
         self._config = _deserialize_config(raw)

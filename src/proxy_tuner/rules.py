@@ -8,11 +8,11 @@ First match wins.
 
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import ipaddress
 import re
-from dataclasses import dataclass, fields
-from typing import Any
+from dataclasses import dataclass
 
 from proxy_tuner.config import Config, MatchCondition, Outbound, Rule
 
@@ -45,19 +45,15 @@ class CompiledMatch:
         self.ip_regex: list[re.Pattern] = self._compile_patterns(match.ip_regex)
         self.ip_networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
         for cidr in match.ip_cidr:
-            try:
+            with contextlib.suppress(ValueError):
                 self.ip_networks.append(ipaddress.ip_network(cidr, strict=False))
-            except ValueError:
-                pass  # Invalid CIDR skipped (validated earlier)
 
     @staticmethod
     def _compile_patterns(patterns: list[str]) -> list[re.Pattern]:
         compiled: list[re.Pattern] = []
         for p in patterns:
-            try:
+            with contextlib.suppress(re.error):
                 compiled.append(re.compile(p))
-            except re.error:
-                pass  # Invalid regex skipped (validated earlier)
         return compiled
 
     @staticmethod
@@ -158,10 +154,7 @@ class RuleEngine:
             return False
         if m.port_range and not self._match_port_range(m.port_range, conn):
             return False
-        if m.url_regex and not self._match_url_regex(m.url_regex, conn):
-            return False
-
-        return True
+        return not (m.url_regex and not self._match_url_regex(m.url_regex, conn))
 
     # ------------------------------------------------------------------
     # Individual matchers — each returns True if ANY value in the list
@@ -186,10 +179,7 @@ class RuleEngine:
         if not conn.process_path:
             return False
         path = conn.process_path.lower()
-        for pattern in patterns:
-            if fnmatch.fnmatch(path, pattern.lower()):
-                return True
-        return False
+        return any(fnmatch.fnmatch(path, pattern.lower()) for pattern in patterns)
 
     def _match_domain(
         self,
@@ -208,20 +198,13 @@ class RuleEngine:
                 return True
 
         # Regex matching
-        for regex in domain_regex:
-            if regex.search(host):
-                return True
-
-        return False
+        return any(regex.search(host) for regex in domain_regex)
 
     def _match_ip(self, ips: list[str], conn: ConnectionInfo) -> bool:
         """Match exact IP address."""
         if not conn.dst_ip:
             return False
-        for ip in ips:
-            if conn.dst_ip == ip:
-                return True
-        return False
+        return any(conn.dst_ip == ip for ip in ips)
 
     def _match_ip_cidr(
         self,
@@ -235,19 +218,13 @@ class RuleEngine:
             addr = ipaddress.ip_address(conn.dst_ip)
         except ValueError:
             return False
-        for network in networks:
-            if addr in network:
-                return True
-        return False
+        return any(addr in network for network in networks)
 
     def _match_ip_regex(self, patterns: list[re.Pattern], conn: ConnectionInfo) -> bool:
         """Match IP against regex patterns."""
         if not conn.dst_ip:
             return False
-        for regex in patterns:
-            if regex.search(conn.dst_ip):
-                return True
-        return False
+        return any(regex.search(conn.dst_ip) for regex in patterns)
 
     def _match_port(self, ports: list[int], conn: ConnectionInfo) -> bool:
         """Match exact port."""
@@ -259,19 +236,13 @@ class RuleEngine:
         """Match port against ranges."""
         if conn.dst_port <= 0:
             return False
-        for lo, hi in ranges:
-            if lo <= conn.dst_port <= hi:
-                return True
-        return False
+        return any(lo <= conn.dst_port <= hi for lo, hi in ranges)
 
     def _match_url_regex(self, patterns: list[re.Pattern], conn: ConnectionInfo) -> bool:
         """Match URL against regex patterns."""
         if not conn.url:
             return False
-        for regex in patterns:
-            if regex.search(conn.url):
-                return True
-        return False
+        return any(regex.search(conn.url) for regex in patterns)
 
 
 def match_condition_matches(match: MatchCondition, conn: ConnectionInfo) -> bool:

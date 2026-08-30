@@ -8,12 +8,10 @@ from __future__ import annotations
 import asyncio
 import struct
 
-import pytest
-
 from proxy_tuner.config import Config, DirectOutbound, MatchCondition, Rule, Settings
 from proxy_tuner.forwarder import Forwarder, ForwarderStats
 from proxy_tuner.rules import ConnectionInfo
-from proxy_tuner.socks5 import SOCKS5_VERSION, SOCKS5_ATYP_IPV4
+from proxy_tuner.socks5 import SOCKS5_ATYP_IPV4, SOCKS5_VERSION
 
 
 def _make_config(port: int = 0, rules: list[Rule] | None = None) -> Config:
@@ -50,7 +48,8 @@ class TestForwarderLifecycle:
             await forwarder.start()
 
             new_config = _make_config()
-            new_config.rules = [Rule(name="updated", outbound="direct", match=MatchCondition(process=["curl"]))]
+            match = MatchCondition(process=["curl"])
+            new_config.rules = [Rule(name="updated", outbound="direct", match=match)]
             forwarder.update_config(new_config)
             assert len(forwarder.config.rules) == 1
             assert forwarder.config.rules[0].name == "updated"

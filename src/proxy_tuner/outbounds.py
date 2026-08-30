@@ -11,9 +11,9 @@ import time
 from dataclasses import dataclass, field
 from typing import NamedTuple
 
-from proxy_tuner.config import Config, DirectOutbound, HttpOutbound, Outbound, Socks5Outbound
-from proxy_tuner.http_proxy import HttpProxyConnection, http_connect, HttpProxyError
-from proxy_tuner.socks5 import Socks5Connection, socks5_connect, Socks5Error
+from proxy_tuner.config import Config, DirectOutbound, HttpOutbound, Socks5Outbound
+from proxy_tuner.http_proxy import HttpProxyError, http_connect
+from proxy_tuner.socks5 import Socks5Error, socks5_connect
 
 
 class OutboundError(Exception):
@@ -115,7 +115,9 @@ class OutboundManager:
 
         raise last_error  # type: ignore[misc]
 
-    async def _connect_once(self, outbound_name: str, target_host: str, target_port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    async def _connect_once(
+        self, outbound_name: str, target_host: str, target_port: int,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Single connection attempt."""
         ob = self.config.outbounds[outbound_name]
         start = time.monotonic()
@@ -165,7 +167,9 @@ class OutboundManager:
             self.stats.setdefault(outbound_name, OutboundStats()).record_error()
             raise OutboundError(f"Failed to connect through '{outbound_name}': {e}") from e
 
-    async def test_outbound(self, name: str, test_host: str = "1.1.1.1", test_port: int = 80) -> OutboundTestResult:
+    async def test_outbound(
+        self, name: str, test_host: str = "1.1.1.1", test_port: int = 80,
+    ) -> OutboundTestResult:
         """Test connectivity through an outbound proxy.
 
         Attempts to connect to test_host:test_port through the proxy.

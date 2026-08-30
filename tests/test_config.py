@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -18,11 +17,10 @@ from proxy_tuner.config import (
     Rule,
     Settings,
     Socks5Outbound,
-    parse_outbound,
-    _serialize_config,
     _deserialize_config,
+    _serialize_config,
+    parse_outbound,
 )
-
 
 # ---------------------------------------------------------------------------
 # Outbound parsing
@@ -409,7 +407,7 @@ class TestConfigFromFile:
         if not example.exists():
             pytest.skip("Example config not found")
 
-        with open(example, "r") as f:
+        with open(example) as f:
             data = json.load(f)
 
         config = _deserialize_config(data)

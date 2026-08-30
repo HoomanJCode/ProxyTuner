@@ -98,7 +98,9 @@ def _encode_address(host: str, port: int) -> bytes:
     domain_bytes = host.encode("ascii")
     if len(domain_bytes) > 255:
         raise Socks5Error(f"Domain name too long: {len(domain_bytes)} bytes")
-    return struct.pack("!B", SOCKS5_ATYP_DOMAIN) + struct.pack("!B", len(domain_bytes)) + domain_bytes + struct.pack("!H", port)
+    header = struct.pack("!B", SOCKS5_ATYP_DOMAIN)
+    dlen = struct.pack("!B", len(domain_bytes))
+    return header + dlen + domain_bytes + struct.pack("!H", port)
 
 
 def _decode_address(data: bytes, offset: int = 3) -> tuple[str, int, int]:
@@ -164,7 +166,8 @@ async def socks5_connect(
         # --- Authentication negotiation ---
         if username and password:
             # Offer username/password auth
-            writer.write(struct.pack("!BB", SOCKS5_VERSION, 2) + bytes([SOCKS5_AUTH_NONE, SOCKS5_AUTH_USERPASS]))
+            methods = bytes([SOCKS5_AUTH_NONE, SOCKS5_AUTH_USERPASS])
+            writer.write(struct.pack("!BB", SOCKS5_VERSION, 2) + methods)
         else:
             # Offer no-auth only
             writer.write(struct.pack("!BB", SOCKS5_VERSION, 1) + bytes([SOCKS5_AUTH_NONE]))
@@ -227,7 +230,10 @@ async def socks5_connect(
         full_reply = reply_header + remaining
         bound_host, bound_port, _ = _decode_address(full_reply, offset=3)
 
-        return Socks5Connection(reader=reader, writer=writer, bound_host=bound_host, bound_port=bound_port)
+        return Socks5Connection(
+            reader=reader, writer=writer,
+            bound_host=bound_host, bound_port=bound_port,
+        )
 
     except Exception:
         writer.close()
