@@ -13,6 +13,8 @@ def get_platform() -> str:
     """Return the current platform identifier."""
     if sys.platform in ("linux", "android"):
         return "linux"
+    elif sys.platform == "darwin":
+        return "macos"
     elif sys.platform == "win32":
         return "windows"
     else:
@@ -30,5 +32,9 @@ def create_backend() -> PlatformBackend:
         from proxy_tuner.platform.windows import WindowsBackend
 
         return WindowsBackend()
+    elif platform == "macos":
+        from proxy_tuner.platform.macos import MacosBackend
+
+        return MacosBackend()
     else:
         raise RuntimeError(f"No backend for platform: {platform}")

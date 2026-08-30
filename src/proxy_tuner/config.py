@@ -275,6 +275,8 @@ def get_config_dir() -> Path:
     if sys.platform in ("linux", "android"):
         xdg_config = os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))
         return Path(xdg_config) / "proxy-tuner"
+    elif sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "proxy-tuner"
     elif sys.platform == "win32":
         appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
         return Path(appdata) / "proxy-tuner"
