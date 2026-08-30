@@ -1,5 +1,9 @@
 # ProxyTuner
 
+> **⚠ Warning: This software is in early development (alpha). Do not use in production or sensitive workspaces.**
+> It may contain bugs, insecure defaults, or incomplete security measures.
+> Use only for personal testing and experimentation.
+
 A cross-platform (Windows & Linux) CLI tool for tuning and routing network traffic through multiple proxy outbounds with flexible rule-based routing.
 
 ## What It Does
