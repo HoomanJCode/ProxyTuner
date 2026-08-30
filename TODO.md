@@ -1,5 +1,7 @@
 # TODO
 
+> **Workflow**: Each completed task is committed individually to master. TODO.md is updated after every commit.
+
 ## Phase 1: Project Scaffold & CLI Skeleton
 
 - [ ] Initialize `pyproject.toml` with project metadata and dependencies
@@ -14,7 +16,7 @@
 - [ ] Create `src/proxy_tuner/cli_start.py` — start/stop/status commands
 - [ ] Write unit tests for config load/save/validate
 - [ ] Write unit tests for CLI commands
-- [ ] Create `examples/config.json` — example configuration file
+- [x] Create `examples/config.json` — example configuration file
 - [ ] Verify `proxy-tuner --help` works and displays all commands
 
 ## Phase 2: Rule Engine
@@ -106,8 +108,9 @@
 
 ## Done
 
-- [x] Project planning documents
+- [x] Project planning documents (commit `91380b1`)
 - [x] Architecture design document
 - [x] Configuration reference
 - [x] Usage guide
 - [x] Development plan
+- [x] Example config file
