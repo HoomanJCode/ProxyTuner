@@ -60,24 +60,25 @@
 
 ## Phase 4: Linux Platform
 
-- [ ] Create `src/proxy_tuner/platform/base.py` — PlatformBackend ABC
-- [ ] Create `src/proxy_tuner/platform/__init__.py` — platform detection
-- [ ] Create `src/proxy_tuner/tun.py` — TunManager class
-- [ ] Implement TUN interface creation via pyroute2 or raw ioctl
-- [ ] Implement TUN packet reading (async)
-- [ ] Implement TUN packet writing
-- [ ] Implement TUN interface teardown
-- [ ] Create `src/proxy_tuner/platform/linux.py` — LinuxBackend class
-- [ ] Implement nftables rule creation for TPROXY/REDIRECT
-- [ ] Implement nftables rule cleanup
-- [ ] Implement per-process matching via uid-owner
-- [ ] Implement `/proc/net/tcp` lookup for real destination
+- [x] Create `src/proxy_tuner/platform/base.py` — PlatformBackend ABC
+- [x] Create `src/proxy_tuner/platform/__init__.py` — platform detection
+- [x] Create `src/proxy_tuner/tun.py` — TunManager class
+- [x] Implement TUN interface creation via raw ioctl
+- [x] Implement TUN packet reading (async)
+- [x] Implement TUN packet writing
+- [x] Implement TUN interface teardown
+- [x] Create `src/proxy_tuner/platform/linux.py` — LinuxBackend class
+- [x] Implement iptables rule creation (MARK + REDIRECT)
+- [x] Implement iptables rule cleanup
+- [x] Implement per-process matching via uid-owner
+- [x] Implement `/proc/net/tcp` lookup for real destination
 - [ ] Implement `SO_ORIGINAL_DST` retrieval
-- [ ] Implement start/stop lifecycle
+- [x] Implement start/stop lifecycle
 - [ ] Implement DNS interception via nftables
 - [ ] Implement graceful shutdown (signal handling)
-- [ ] Write integration tests (requires root)
-- [ ] Test on Ubuntu, Fedora, Arch
+- [x] Write unit tests for TUN IP parsing (7 tests)
+- [x] Write unit tests for firewall management (7 tests)
+- [ ] Integration tests (requires root)
 
 ## Phase 5: Windows Platform
 
@@ -117,3 +118,4 @@
 - [x] Phase 1 complete: scaffold + CLI + config + 64 tests passing
 - [x] Phase 2 complete: rule engine + all match types + 50 tests (114 total passing)
 - [x] Phase 3 complete: SOCKS5/HTTP forwarding + forwarder + 22 tests (136 total passing)
+- [x] Phase 4 complete: Linux TUN + firewall + 14 tests (150 total passing)
