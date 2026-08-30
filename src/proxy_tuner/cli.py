@@ -44,6 +44,8 @@ from proxy_tuner.completions import completions_group  # noqa: E402
 
 from proxy_tuner.setup_wizard import setup_wizard  # noqa: E402
 from proxy_tuner.doctor import doctor  # noqa: E402
+from proxy_tuner.cli_logs import logs  # noqa: E402
+from proxy_tuner.cli_stats import stats  # noqa: E402
 
 main.add_command(outbound_group)
 main.add_command(rule_group)
@@ -51,6 +53,8 @@ main.add_command(config_group)
 main.add_command(completions_group)
 main.add_command(setup_wizard)
 main.add_command(doctor)
+main.add_command(logs)
+main.add_command(stats)
 main.add_command(start)
 main.add_command(stop)
 main.add_command(status)
