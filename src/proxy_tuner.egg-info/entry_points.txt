@@ -1,0 +1,2 @@
+[console_scripts]
+proxy-tuner = proxy_tuner.cli:main

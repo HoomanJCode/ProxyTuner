@@ -4,20 +4,20 @@
 
 ## Phase 1: Project Scaffold & CLI Skeleton
 
-- [ ] Initialize `pyproject.toml` with project metadata and dependencies
-- [ ] Set up `src/proxy_tuner/` package structure with `__init__.py`
-- [ ] Create `src/proxy_tuner/config.py` — config file load/save
-- [ ] Create `src/proxy_tuner/config.py` — Pydantic models for config schema
-- [ ] Create `src/proxy_tuner/config.py` — config validation logic
-- [ ] Create `src/proxy_tuner/cli.py` — main Click group
-- [ ] Create `src/proxy_tuner/cli_outbound.py` — outbound subcommands (add/rm/list/test)
-- [ ] Create `src/proxy_tuner/cli_rule.py` — rule subcommands (add/rm/list/move/test)
-- [ ] Create `src/proxy_tuner/cli_config.py` — config subcommands (show/path/edit/validate)
-- [ ] Create `src/proxy_tuner/cli_start.py` — start/stop/status commands
-- [ ] Write unit tests for config load/save/validate
-- [ ] Write unit tests for CLI commands
+- [x] Initialize `pyproject.toml` with project metadata and dependencies
+- [x] Set up `src/proxy_tuner/` package structure with `__init__.py`
+- [x] Create `src/proxy_tuner/config.py` — config file load/save
+- [x] Create `src/proxy_tuner/config.py` — dataclass models for config schema
+- [x] Create `src/proxy_tuner/config.py` — config validation logic
+- [x] Create `src/proxy_tuner/cli.py` — main Click group
+- [x] Create `src/proxy_tuner/cli_outbound.py` — outbound subcommands (add/rm/list/test)
+- [x] Create `src/proxy_tuner/cli_rule.py` — rule subcommands (add/rm/list/move/test)
+- [x] Create `src/proxy_tuner/cli_config.py` — config subcommands (show/path/edit/validate)
+- [x] Create `src/proxy_tuner/cli_start.py` — start/stop/status commands
+- [x] Write unit tests for config load/save/validate (36 tests)
+- [x] Write unit tests for CLI commands (28 tests)
 - [x] Create `examples/config.json` — example configuration file
-- [ ] Verify `proxy-tuner --help` works and displays all commands
+- [x] Verify `proxy-tuner --help` works and displays all commands
 
 ## Phase 2: Rule Engine
 
@@ -114,3 +114,4 @@
 - [x] Usage guide
 - [x] Development plan
 - [x] Example config file
+- [x] Phase 1 complete: scaffold + CLI + config + 64 tests passing
