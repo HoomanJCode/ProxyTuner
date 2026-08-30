@@ -86,15 +86,37 @@ class OutboundManager:
         """Get stats for an outbound."""
         return self.stats.setdefault(name, OutboundStats())
 
-    async def connect(self, outbound_name: str, target_host: str, target_port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    async def connect(
+        self,
+        outbound_name: str,
+        target_host: str,
+        target_port: int,
+        max_retries: int = 2,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Open a proxied connection to target through the named outbound.
 
+        Retries up to max_retries times on failure.
         Returns (reader, writer) for the tunneled connection.
-        Raises OutboundError if the connection fails.
+        Raises OutboundError if all retries fail.
         """
         if outbound_name not in self.config.outbounds:
             raise OutboundError(f"Outbound '{outbound_name}' does not exist")
 
+        last_error: Exception | None = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._connect_once(outbound_name, target_host, target_port)
+            except OutboundError as e:
+                last_error = e
+                if attempt < max_retries:
+                    await asyncio.sleep(0.1 * (attempt + 1))  # Backoff
+                    continue
+
+        raise last_error  # type: ignore[misc]
+
+    async def _connect_once(self, outbound_name: str, target_host: str, target_port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        """Single connection attempt."""
         ob = self.config.outbounds[outbound_name]
         start = time.monotonic()
 
