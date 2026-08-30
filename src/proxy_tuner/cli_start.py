@@ -243,8 +243,32 @@ def status(ctx: click.Context) -> None:
                 table.add_row(name, ob.type, f"{ob.host}:{ob.port}")
         console.print(table)
 
-    # Rules summary
+    # Rules table
+    if config.rules:
+        rules_table = Table(title="Rules")
+        rules_table.add_column("Priority", style="dim")
+        rules_table.add_column("Name", style="bold")
+        rules_table.add_column("Enabled")
+        rules_table.add_column("Outbound")
+        rules_table.add_column("Match")
+
+        for rule in sorted(config.rules, key=lambda r: r.priority):
+            enabled = "[green]yes[/green]" if rule.enabled else "[red]no[/red]"
+            m = rule.match
+            parts = []
+            if m.process:
+                parts.append(f"proc:{','.join(m.process[:2])}")
+            if m.domain:
+                parts.append(f"dom:{','.join(m.domain[:2])}")
+            if m.ip_cidr:
+                parts.append(f"ip:{','.join(m.ip_cidr[:1])}")
+            if m.port:
+                parts.append(f"port:{','.join(str(p) for p in m.port[:2])}")
+            match_str = " ".join(parts) if parts else "*"
+            rules_table.add_row(str(rule.priority), rule.name, enabled, rule.outbound, match_str)
+
+        console.print(rules_table)
+
     enabled_count = sum(1 for r in config.rules if r.enabled)
     total_count = len(config.rules)
-    console.print(f"Rules: {enabled_count} active / {total_count} total")
-    console.print(f"Listen port: {config.settings.listen_port}")
+    console.print(f"Listen port: {config.settings.listen_port} | Rules: {enabled_count} active / {total_count} total")

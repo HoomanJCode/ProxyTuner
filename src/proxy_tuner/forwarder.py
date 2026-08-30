@@ -85,6 +85,9 @@ class Forwarder:
         self.config = config
         self.rule_engine.update(config)
         self.outbound_manager.update(config)
+        self.dns = DnsResolver(
+            dns_server=config.settings.dns_server if config.settings.dns_intercept else None
+        )
 
     async def start(self) -> None:
         """Start listening for connections."""

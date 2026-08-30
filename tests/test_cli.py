@@ -267,6 +267,29 @@ class TestConfigCommands:
         assert result.exit_code == 0
         assert config_file.exists()
 
+    def test_set_integer(self, runner: CliRunner, config_file: Path) -> None:
+        result = _run(runner, config_file, "config", "set", "settings.listen_port", "9090")
+        assert result.exit_code == 0
+        assert "9090" in result.output
+
+    def test_set_string(self, runner: CliRunner, config_file: Path) -> None:
+        result = _run(runner, config_file, "config", "set", "settings.log_level", "debug")
+        assert result.exit_code == 0
+        assert "debug" in result.output
+
+    def test_set_boolean(self, runner: CliRunner, config_file: Path) -> None:
+        result = _run(runner, config_file, "config", "set", "settings.dns_intercept", "false")
+        assert result.exit_code == 0
+        assert "False" in result.output
+
+    def test_set_invalid_key(self, runner: CliRunner, config_file: Path) -> None:
+        result = _run(runner, config_file, "config", "set", "invalid", "value")
+        assert result.exit_code != 0
+
+    def test_set_no_section(self, runner: CliRunner, config_file: Path) -> None:
+        result = _run(runner, config_file, "config", "set", "nodots", "value")
+        assert result.exit_code != 0
+
 
 class TestStatusCommand:
     def test_status_stopped(self, runner: CliRunner, config_file: Path) -> None:

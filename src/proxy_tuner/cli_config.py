@@ -99,3 +99,52 @@ def init_config(ctx: click.Context) -> None:
 
     manager.save(Config())
     console.print(f"[green]✓[/green] Created default config at {manager.path}")
+
+
+@config_group.command("set")
+@click.argument("key")
+@click.argument("value")
+@click.pass_context
+def set_config(ctx: click.Context, key: str, value: str) -> None:
+    """Set a configuration value.
+
+    Examples:
+        proxy-tuner config set settings.listen_port 9090
+        proxy-tuner config set settings.log_level debug
+        proxy-tuner config set settings.dns_server 1.1.1.1
+    """
+    manager: ConfigManager = ctx.obj["config_manager"]
+    config = manager.get()
+
+    # Parse the key path
+    parts = key.split(".")
+    if len(parts) < 2:
+        console.print("[red]Error:[/red] Key must be in format 'section.field' (e.g., settings.listen_port)")
+        raise click.Abort()
+
+    section = parts[0]
+    field_name = parts[1]
+
+    # Type coercion
+    if value.lower() == "true":
+        coerced: object = True
+    elif value.lower() == "false":
+        coerced = False
+    elif value.lower() == "null" or value.lower() == "none":
+        coerced = None
+    else:
+        try:
+            coerced = int(value)
+        except ValueError:
+            try:
+                coerced = float(value)
+            except ValueError:
+                coerced = value
+
+    if section == "settings" and hasattr(config.settings, field_name):
+        setattr(config.settings, field_name, coerced)
+        manager.save(config)
+        console.print(f"[green]✓[/green] Set {key} = {coerced}")
+    else:
+        console.print(f"[red]Error:[/red] Unknown setting '{key}'. Valid sections: settings")
+        raise click.Abort()
