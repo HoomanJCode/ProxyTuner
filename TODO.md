@@ -21,24 +21,24 @@
 
 ## Phase 2: Rule Engine
 
-- [ ] Create `src/proxy_tuner/rules.py` — RuleEngine class
-- [ ] Implement ConnectionInfo dataclass (dst_ip, dst_port, dst_host, process_name, process_path, url)
-- [ ] Implement process name matching (cross-platform)
-- [ ] Implement process path matching (glob + regex)
-- [ ] Implement domain wildcard matching (`*.example.com`)
-- [ ] Implement domain regex matching
-- [ ] Implement IP exact match
-- [ ] Implement IP CIDR matching (use `ipaddress` stdlib)
-- [ ] Implement IP regex matching
-- [ ] Implement port exact matching
-- [ ] Implement port range matching
-- [ ] Implement URL regex matching
-- [ ] Implement AND combination across match types
-- [ ] Implement OR combination within list fields
-- [ ] Implement priority-based rule ordering
-- [ ] Implement default/catch-all rule handling
-- [ ] Write unit tests for all match types
-- [ ] Write integration tests for rule evaluation
+- [x] Create `src/proxy_tuner/rules.py` — RuleEngine class
+- [x] Implement ConnectionInfo dataclass (dst_ip, dst_port, dst_host, process_name, process_path, url)
+- [x] Implement process name matching (cross-platform)
+- [x] Implement process path matching (glob + regex)
+- [x] Implement domain wildcard matching (`*.example.com`)
+- [x] Implement domain regex matching
+- [x] Implement IP exact match
+- [x] Implement IP CIDR matching (use `ipaddress` stdlib)
+- [x] Implement IP regex matching
+- [x] Implement port exact matching
+- [x] Implement port range matching
+- [x] Implement URL regex matching
+- [x] Implement AND combination across match types
+- [x] Implement OR combination within list fields
+- [x] Implement priority-based rule ordering
+- [x] Implement default/catch-all rule handling
+- [x] Write unit tests for all match types (50 tests)
+- [x] Implement `proxy-tuner rule test` CLI command
 
 ## Phase 3: Proxy Forwarding
 
@@ -115,3 +115,4 @@
 - [x] Development plan
 - [x] Example config file
 - [x] Phase 1 complete: scaffold + CLI + config + 64 tests passing
+- [x] Phase 2 complete: rule engine + all match types + 50 tests (114 total passing)

@@ -215,14 +215,38 @@ def test_rule(
     port_val: Optional[int],
 ) -> None:
     """Test if a target matches a rule."""
-    # TODO: Phase 2 — implement rule engine matching
-    console.print("[yellow]Rule testing not yet implemented (Phase 2)[/yellow]")
-    console.print(f"Would test rule '{name}' against:")
-    if process_name:
-        console.print(f"  process: {process_name}")
-    if domain:
-        console.print(f"  domain: {domain}")
-    if ip:
-        console.print(f"  ip: {ip}")
-    if port_val:
-        console.print(f"  port: {port_val}")
+    from proxy_tuner.rules import ConnectionInfo, RuleEngine
+
+    manager: ConfigManager = ctx.obj["config_manager"]
+    config = manager.get()
+
+    # Find the rule
+    target_rule = None
+    for rule in config.rules:
+        if rule.name == name:
+            target_rule = rule
+            break
+
+    if target_rule is None:
+        console.print(f"[red]Error:[/red] Rule '{name}' not found")
+        raise click.Abort()
+
+    # Build test connection
+    conn = ConnectionInfo(
+        process_name=process_name,
+        dst_host=domain,
+        dst_ip=ip or "",
+        dst_port=port_val or 0,
+    )
+
+    # Create engine and evaluate only against this rule
+    engine = RuleEngine(config)
+    result = engine.evaluate_rules(conn)
+
+    if result and result[0] == name:
+        console.print(f"[green]MATCH[/green] rule '{name}' → outbound '{result[1]}'")
+    else:
+        if result:
+            console.print(f"[yellow]NO MATCH[/yellow] — matched rule '{result[0]}' instead")
+        else:
+            console.print("[yellow]NO MATCH[/yellow] — no rule matched")
