@@ -12,7 +12,7 @@ import contextlib
 import logging
 import struct
 import time
-from asyncio import InvalidStateError
+from asyncio import CancelledError, InvalidStateError
 from dataclasses import dataclass, field
 
 from proxy_tuner.config import Config

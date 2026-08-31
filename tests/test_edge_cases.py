@@ -3,15 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import struct
 
-import pytest
-
-from proxy_tuner.config import Config, ConfigManager, MatchCondition, Rule, Settings
-from proxy_tuner.rules import ConnectionInfo, RuleEngine
-from proxy_tuner.socks5 import Socks5Error, _encode_address, _decode_address
+from proxy_tuner.config import Config, ConfigManager, MatchCondition, Rule
 from proxy_tuner.dns import DnsCache
+from proxy_tuner.rules import ConnectionInfo, RuleEngine
+from proxy_tuner.socks5 import _decode_address, _encode_address
 
 
 class TestConfigEdgeCases:
@@ -68,7 +64,10 @@ class TestRuleEngineEdgeCases:
         config = Config(
             outbounds={"direct": {"type": "direct"}},
             rules=[
-                Rule(name="disabled", enabled=False, outbound="direct", match=MatchCondition(process=["firefox"])),
+                Rule(
+                    name="disabled", enabled=False, outbound="direct",
+                    match=MatchCondition(process=["firefox"]),
+                ),
                 Rule(name="catch-all", priority=100, outbound="direct", match=MatchCondition()),
             ],
         )
@@ -102,7 +101,10 @@ class TestRuleEngineEdgeCases:
         config = Config(
             outbounds={"direct": {"type": "direct"}},
             rules=[
-                Rule(name="rule", outbound="direct", match=MatchCondition(domain=["*.example.com"])),
+                Rule(
+                    name="rule", outbound="direct",
+                    match=MatchCondition(domain=["*.example.com"]),
+                ),
             ],
         )
         engine = RuleEngine(config)
@@ -178,8 +180,8 @@ class TestSocks5EdgeCases:
 class TestForwarderEdgeCases:
     def test_forwarder_start_stop(self) -> None:
         async def _test() -> None:
+            from proxy_tuner.config import DirectOutbound, Settings
             from proxy_tuner.forwarder import Forwarder
-            from proxy_tuner.config import Config, DirectOutbound, Settings
 
             config = Config(
                 outbounds={"direct": DirectOutbound()},

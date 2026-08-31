@@ -13,11 +13,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import ipaddress
-import socket
 import struct
 from dataclasses import dataclass, field
-
-import pytest
 
 from proxy_tuner.config import (
     Config,

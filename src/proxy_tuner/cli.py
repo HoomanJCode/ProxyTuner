@@ -34,6 +34,7 @@ def main(ctx: click.Context, config_path: Path | None) -> None:
 
 
 # Register subcommands
+from proxy_tuner.cli_bench import bench  # noqa: E402
 from proxy_tuner.cli_config import config_group  # noqa: E402
 from proxy_tuner.cli_logs import logs  # noqa: E402
 from proxy_tuner.cli_monitor import monitor  # noqa: E402
@@ -41,8 +42,6 @@ from proxy_tuner.cli_outbound import outbound_group  # noqa: E402
 from proxy_tuner.cli_rule import rule_group  # noqa: E402
 from proxy_tuner.cli_start import start, status, stop  # noqa: E402
 from proxy_tuner.cli_stats import stats  # noqa: E402
-from proxy_tuner.cli_bench import bench  # noqa: E402
-from proxy_tuner.cli_monitor import monitor  # noqa: E402
 from proxy_tuner.completions import completions_group  # noqa: E402
 from proxy_tuner.doctor import doctor  # noqa: E402
 from proxy_tuner.setup_wizard import setup_wizard  # noqa: E402
