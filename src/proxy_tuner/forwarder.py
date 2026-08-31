@@ -12,6 +12,7 @@ import contextlib
 import logging
 import struct
 import time
+from asyncio import InvalidStateError
 from dataclasses import dataclass, field
 
 from proxy_tuner.config import Config
@@ -151,8 +152,13 @@ class Forwarder:
         except (ConnectionResetError, BrokenPipeError):
             logger.debug("Connection from %s reset", addr)
         except Exception as e:
-            logger.error("Error handling connection from %s: %s", addr, e)
-            self.stats.errors += 1
+            # Python 3.14 asyncio can raise InvalidStateError when a read
+            # future is cancelled during connection teardown.
+            if "is not set" in str(e):
+                logger.debug("Connection from %s closed during read (Python 3.14 asyncio)", addr)
+            else:
+                logger.error("Error handling connection from %s: %s", addr, e)
+                self.stats.errors += 1
         finally:
             self.stats.active_connections -= 1
             client_writer.close()
@@ -435,9 +441,23 @@ class Forwarder:
             for task in pending:
                 task.cancel()
 
-            # Collect stats
-            sent = to_remote.result() if not to_remote.cancelled() else 0
-            received = to_client.result() if not to_client.cancelled() else 0
+            # Collect stats — must handle InvalidStateError from
+            # Python 3.14 asyncio where cancelled futures may not be set.
+            def _safe_result(t: asyncio.Task) -> int:
+                try:
+                    if t.cancelled():
+                        return 0
+                    if not t.done():
+                        return 0
+                    return t.result()
+                except (InvalidStateError, RuntimeError, CancelledError):
+                    return 0
+
+            # Give cancelled tasks a moment to finalize
+            await asyncio.sleep(0)
+
+            sent = _safe_result(to_remote)
+            received = _safe_result(to_client)
             stats = self.outbound_manager.get_stats(outbound_name)
             stats.record_bytes(sent, received)
             self.stats.bytes_sent += sent
