@@ -15,6 +15,7 @@ import contextlib
 import ipaddress
 import struct
 from dataclasses import dataclass, field
+
 from proxy_tuner.config import (
     Config,
     DirectOutbound,
@@ -31,7 +32,6 @@ from proxy_tuner.socks5 import (
     SOCKS5_REP_SUCCESS,
     SOCKS5_VERSION,
 )
-
 
 # ---------------------------------------------------------------------------
 # Mock servers
