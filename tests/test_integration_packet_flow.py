@@ -15,7 +15,6 @@ import contextlib
 import ipaddress
 import struct
 from dataclasses import dataclass, field
-
 from proxy_tuner.config import (
     Config,
     DirectOutbound,
