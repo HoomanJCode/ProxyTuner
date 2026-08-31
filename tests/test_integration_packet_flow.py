@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from dataclasses import dataclass, field
 import ipaddress
 import struct
-from dataclasses import dataclass, field
 
 from proxy_tuner.config import (
     Config,
@@ -32,6 +32,7 @@ from proxy_tuner.socks5 import (
     SOCKS5_REP_SUCCESS,
     SOCKS5_VERSION,
 )
+
 
 
 # ---------------------------------------------------------------------------
