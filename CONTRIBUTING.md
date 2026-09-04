@@ -6,8 +6,8 @@ Thanks for your interest in contributing! Here's how to get started.
 
 ```bash
 # Clone the repo
-git clone https://github.com/HoomanJCode/PoxyTuner.git
-cd PoxyTuner
+git clone https://github.com/HoomanJCode/ProxyTuner.git
+cd ProxyTuner
 
 # Install in development mode
 pip install -e ".[dev]"
@@ -124,4 +124,4 @@ Co-Authored-By: Codebuff <noreply@codebuff.com>
 
 ## Questions?
 
-Open an issue at https://github.com/HoomanJCode/PoxyTuner/issues
+Open an issue at https://github.com/HoomanJCode/ProxyTuner/issues

@@ -1,6 +1,8 @@
 # ProxyTuner — Rule-Based Multi-Proxy Traffic Router
 
-[![CI](https://github.com/HoomanJ/ProxyTuner/actions/workflows/ci.yml/badge.svg)](https://github.com/HoomanJ/ProxyTuner/actions/workflows/ci.yml)
+[![CI](https://github.com/HoomanJCode/ProxyTuner/actions/workflows/ci.yml/badge.svg)](https://github.com/HoomanJCode/ProxyTuner/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/proxy-tuner)](https://pypi.org/project/proxy-tuner/)
+[![Python](https://img.shields.io/pypi/pyversions/proxy-tuner)](https://pypi.org/project/proxy-tuner/)
 
 > **Alpha software:** ProxyTuner is under active development. Do not use it for production traffic, sensitive workspaces, or security-critical workloads. Review the configuration and test every proxy before relying on it.
 
@@ -150,7 +152,7 @@ python -m pip install proxy-tuner
 For development from source:
 
 ```bash
-git clone https://github.com/HoomanJ/ProxyTuner.git
+git clone https://github.com/HoomanJCode/ProxyTuner.git
 cd ProxyTuner
 python -m pip install -e ".[dev]"
 ```
@@ -428,7 +430,7 @@ Use the local proxy mode first. Transparent interception requires elevated privi
 ## Development
 
 ```bash
-git clone https://github.com/HoomanJ/ProxyTuner.git
+git clone https://github.com/HoomanJCode/ProxyTuner.git
 cd ProxyTuner
 python -m pip install -e ".[dev]"
 

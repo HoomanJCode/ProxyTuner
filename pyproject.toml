@@ -47,9 +47,9 @@ dev = [
 proxy-tuner = "proxy_tuner.cli:main"
 
 [project.urls]
-Repository = "https://github.com/HoomanJ/proxy-tuner"
-Documentation = "https://github.com/HoomanJ/proxy-tuner/tree/master/docs"
-Issues = "https://github.com/HoomanJ/proxy-tuner/issues"
+Repository = "https://github.com/HoomanJCode/ProxyTuner"
+Documentation = "https://github.com/HoomanJCode/ProxyTuner/tree/master/docs"
+Issues = "https://github.com/HoomanJCode/ProxyTuner/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
