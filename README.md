@@ -27,6 +27,102 @@ curl     ──►  10.0.0.0/8      ──► Direct connection
 Other    ──►  *               ──► Work Proxy (SOCKS5)
 ```
 
+## Completing V2Portal — The Client-Side Half of the Stack
+
+[**V2Portal**](https://github.com/HoomanJCode/V2Portal) is a cross-platform V2Ray CLI client that manages proxy subscriptions, profiles, proxy groups, and persistent local proxy servers backed by sing-box and Xray-core. It handles VLESS, VMess, Trojan, Shadowsocks, WireGuard, Hysteria2, TUIC, and more — importing share links, running multiple inbound servers, and applying domain/IP/geo routing rules inside the managed proxy engines.
+
+V2Portal does **not** steer traffic at the operating-system level. It exposes local SOCKS5 or HTTP inbound ports and expects each application to be configured manually. ProxyTuner completes the picture by sitting in front of V2Portal's inbound ports and providing **per-process, per-domain, per-IP, and per-port routing** with transparent system-wide interception on Linux and Windows.
+
+```text
+Application traffic
+        │
+        ▼
+   ProxyTuner          ◄── process-aware, domain/IP/port rules
+   (127.0.0.1:10808)
+        │
+        ├──► V2Portal server :1080  (balanced VLESS/VMess group)
+        ├──► V2Portal server :1081  (single Trojan node)
+        ├──► V2Portal server :1082  (HTTP upstream)
+        └──► Direct connection
+```
+
+### Why use both together?
+
+| Capability | V2Portal alone | V2Portal + ProxyTuner |
+| --- | --- | --- |
+| Subscription & profile management | ✔ | ✔ |
+| Proxy groups & load balancing | ✔ | ✔ |
+| Rule-based split routing (engine-level) | ✔ | ✔ |
+| **Per-process traffic steering** | ✘ | ✔ |
+| **Transparent system-wide interception** | ✘ | ✔ (Linux TUN / Windows WinDivert) |
+| **Cross-engine outbound selection** | ✘ | ✔ (route Chrome to VLESS, curl to HTTP, etc.) |
+| **Connection pooling & statistics** | Basic | ✔ (async pool, live monitor, bench) |
+
+### Quick integration example
+
+```bash
+# 1. Start V2Portal proxy servers.
+v2portal server add --port 1080 SUBSCRIPTION_ID --name 'Balanced VLESS'
+v2portal server add --port 1081 PROFILE_ID --name 'US node'
+v2portal server start --all
+
+# 2. Register each V2Portal inbound as a ProxyTuner outbound.
+proxy-tuner outbound add vless-balanced --type socks5 --host 127.0.0.1 --port 1080
+proxy-tuner outbound add us-node --type socks5 --host 127.0.0.1 --port 1081
+
+# 3. Create routing rules.
+
+# CRITICAL: Bypass V2Portal's own traffic to avoid routing loops.
+# V2Portal connects to remote V2Ray/Xray servers — this traffic must
+# go direct so ProxyTuner doesn't try to route it through V2Portal
+# (which would route it through V2Portal again, causing a loop).
+proxy-tuner rule add v2portal-bypass \
+  --process v2portal \
+  --outbound direct \
+  --priority 1
+
+# Also bypass V2Portal's inbound ports so local proxy-to-proxy
+# traffic is not intercepted.
+proxy-tuner rule add v2portal-ports-direct \
+  --port 1080,1081,1082 \
+  --outbound direct \
+  --priority 2
+
+# Keep private networks direct.
+proxy-tuner rule add private-direct \
+  --ip-cidr "10.0.0.0/8,192.168.0.0/16" \
+  --outbound direct \
+  --priority 5
+
+# Route browser destinations through a specific V2Portal node.
+proxy-tuner rule add chrome-youtube \
+  --process chrome --domain "*.youtube.com,*.googlevideo.com" \
+  --outbound us-node \
+  --priority 10
+
+# Catch-all: send everything else through the balanced group.
+proxy-tuner rule add default-proxy \
+  --outbound vless-balanced \
+  --priority 100
+
+# 4. Start ProxyTuner.
+sudo proxy-tuner start   # transparent TUN mode on Linux
+# or
+proxy-tuner start --foreground  # manual proxy mode on any OS
+```
+
+### Installation side-by-side
+
+Both tools live on PyPI and use separate config directories, so they coexist without conflict:
+
+```bash
+python -m pip install v2portal proxy-tuner
+```
+
+V2Portal stores its config under `~/.config/v2portal/` and ProxyTuner under `~/.config/proxy-tuner/`. Each tool manages its own config, rules, and runtime state independently.
+
+> **In short:** V2Portal manages *what* proxies are available. ProxyTuner decides *which traffic goes where*. Together they deliver a complete, rule-driven proxy infrastructure from subscription import through transparent per-process routing.
+
 ## Features
 
 - **Multiple upstream outbounds:** SOCKS5, HTTP CONNECT, and direct connections.

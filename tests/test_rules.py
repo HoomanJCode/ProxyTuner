@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from proxy_tuner.config import Config, MatchCondition, Rule
-from proxy_tuner.rules import CompiledMatch, CompiledRule, ConnectionInfo, RuleEngine
+from proxy_tuner.rules import CompiledMatch, CompiledRule, ConnectionInfo, RuleEngine, _BYPASS_PROCESSES
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -561,6 +561,64 @@ class TestCompiledMatch:
     def test_non_empty_match_not_catch_all(self) -> None:
         rule = CompiledRule(Rule(match=MatchCondition(process=["firefox"])))
         assert rule.is_catch_all is False
+
+
+# ---------------------------------------------------------------------------
+# Bypassed processes (hardcoded loop prevention)
+# ---------------------------------------------------------------------------
+
+class TestBypassProcesses:
+    """V2Portal and other bypassed processes must always route direct."""
+
+    def test_v2portal_bypassed(self) -> None:
+        config = _make_config([
+            Rule(name="proxy", priority=10, outbound="some-proxy",
+                 match=MatchCondition(process=["firefox"])),
+            Rule(name="default", priority=100, outbound="some-proxy",
+                 match=MatchCondition()),
+        ])
+        engine = RuleEngine(config)
+        # Even though there is no rule targeting v2portal, it should
+        # always resolve to "direct" via the hardcoded bypass.
+        assert engine.evaluate(_conn(process_name="v2portal")) == "direct"
+
+    def test_v2portal_case_insensitive(self) -> None:
+        config = _make_config([
+            Rule(name="default", priority=100, outbound="some-proxy",
+                 match=MatchCondition()),
+        ])
+        engine = RuleEngine(config)
+        assert engine.evaluate(_conn(process_name="V2Portal")) == "direct"
+        assert engine.evaluate(_conn(process_name="V2PORTAL")) == "direct"
+
+    def test_bypass_prevents_loop(self) -> None:
+        """A catch-all proxy rule must not capture v2portal traffic."""
+        config = _make_config([
+            Rule(name="catch-all", priority=1, outbound="my-vpn",
+                 match=MatchCondition()),
+        ])
+        engine = RuleEngine(config)
+        # The bypass fires before any user rules, so v2portal goes direct.
+        assert engine.evaluate(_conn(process_name="v2portal")) == "direct"
+
+    def test_other_processes_not_bypassed(self) -> None:
+        config = _make_config([
+            Rule(name="default", priority=100, outbound="my-proxy",
+                 match=MatchCondition()),
+        ])
+        engine = RuleEngine(config)
+        assert engine.evaluate(_conn(process_name="firefox")) == "my-proxy"
+        assert engine.evaluate(_conn(process_name="chrome")) == "my-proxy"
+
+    def test_all_bypass_processes_in_set(self) -> None:
+        """Every process in _BYPASS_PROCESSES goes direct."""
+        config = _make_config([
+            Rule(name="default", priority=100, outbound="my-proxy",
+                 match=MatchCondition()),
+        ])
+        engine = RuleEngine(config)
+        for proc in _BYPASS_PROCESSES:
+            assert engine.evaluate(_conn(process_name=proc)) == "direct"
 
 
 # ---------------------------------------------------------------------------

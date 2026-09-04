@@ -16,6 +16,11 @@ from dataclasses import dataclass
 
 from proxy_tuner.config import Config, MatchCondition, Outbound, Rule
 
+# Processes that must always go direct to avoid routing loops.
+# V2Portal manages proxy servers — its own outbound traffic must
+# never be routed through ProxyTuner, or it would loop back.
+_BYPASS_PROCESSES: frozenset[str] = frozenset({"v2portal"})
+
 
 @dataclass
 class ConnectionInfo:
@@ -113,7 +118,13 @@ class RuleEngine:
         """Evaluate a connection against rules.
 
         Returns the outbound name or None if no rule matched.
+        Connections from bypassed processes (e.g. v2portal) are
+        always routed direct to prevent routing loops.
         """
+        # Hardcoded bypass — these processes must never be proxied.
+        if conn.process_name and conn.process_name.lower() in _BYPASS_PROCESSES:
+            return "direct"
+
         for rule in self._rules:
             if self._match_rule(rule, conn):
                 return rule.outbound
