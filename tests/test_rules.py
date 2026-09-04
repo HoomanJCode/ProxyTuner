@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 from proxy_tuner.config import Config, MatchCondition, Rule
-from proxy_tuner.rules import CompiledMatch, CompiledRule, ConnectionInfo, RuleEngine, _BYPASS_PROCESSES
+from proxy_tuner.rules import (
+    _BYPASS_PROCESSES,
+    CompiledMatch,
+    CompiledRule,
+    ConnectionInfo,
+    RuleEngine,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
