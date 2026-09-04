@@ -1,167 +1,354 @@
-# ProxyTuner
+# ProxyTuner — Rule-Based Multi-Proxy Traffic Router
 
-> **⚠ Warning: This software is in early development (alpha). Do not use in production or sensitive workspaces.**
-> It may contain bugs, insecure defaults, or incomplete security measures.
-> Use only for personal testing and experimentation.
+[![CI](https://github.com/HoomanJ/ProxyTuner/actions/workflows/ci.yml/badge.svg)](https://github.com/HoomanJ/ProxyTuner/actions/workflows/ci.yml)
 
-**Route different traffic through different proxies — automatically.**
+> **Alpha software:** ProxyTuner is under active development. Do not use it for production traffic, sensitive workspaces, or security-critical workloads. Review the configuration and test every proxy before relying on it.
 
-ProxyTuner is a cross-platform CLI tool that splits your network traffic and sends it through the right proxy based on rules you define. Send Firefox through VPN, keep terminal traffic direct, and route streaming through a different proxy — all at the same time.
+**ProxyTuner is a Python CLI that routes network connections through multiple SOCKS5, HTTP CONNECT, or direct outbounds using flexible rules.** Run one local proxy, then send different destinations through different upstream proxies for practical split tunneling and proxy chaining workflows.
 
-## The Problem
+Use it as a **multi-proxy router**, **rule-based proxy manager**, **local SOCKS5 proxy**, or **HTTP CONNECT proxy**. Rules can match domains, IP addresses and CIDR ranges, ports, process names, process paths, and regular expressions.
 
-Most proxy tools send **all** traffic through a single proxy. You either go all-in on a VPN or deal with manual proxy configuration per app. There's no easy way to say *"this app goes here, that app goes there."*
+## Why ProxyTuner?
 
-## The Solution
+Most proxy clients apply one proxy to an entire application or system. ProxyTuner lets you define routing policies such as:
 
-ProxyTuner sits in the middle and **splits traffic per-connection** based on rules you define:
+- Send browser traffic or selected domains through a SOCKS5 VPN.
+- Keep private and local network ranges on a direct connection.
+- Route corporate, regional, or development traffic through a dedicated HTTP proxy.
+- Combine domain, IP, port, and process conditions with first-match-wins priority.
+- Inspect configuration, test upstream connectivity, monitor statistics, and diagnose prerequisites from the terminal.
 
+Example routing policy:
+
+```text
+Firefox  ──►  *.example.com  ──►  VPN Proxy (SOCKS5)
+Chrome   ──►  *.video.example ──► Streaming Proxy (HTTP)
+curl     ──►  10.0.0.0/8      ──► Direct connection
+Other    ──►  *               ──► Work Proxy (SOCKS5)
 ```
-Firefox  ──►  *.google.com  ──►  VPN Proxy (SOCKS5)
-Chrome   ──►  *.youtube.com ──►  Streaming Proxy (HTTP)
-curl     ──►  10.0.0.0/8    ──►  Direct (no proxy)
-git      ──►  *             ──►  Work Proxy (SOCKS5)
-```
 
-Each connection is evaluated independently. One app can go through a proxy while another goes direct — simultaneously.
+## Features
+
+- **Multiple upstream outbounds:** SOCKS5, HTTP CONNECT, and direct connections.
+- **Rule-based routing:** Priority-ordered rules with AND logic between match fields and OR logic within list fields.
+- **Domain routing:** Wildcard patterns such as `*.example.com` and domain regular expressions.
+- **IP routing:** Exact IPs, IPv4/IPv6 CIDR ranges, and IP regular expressions.
+- **Port routing:** Exact ports and port ranges.
+- **Process-aware rules:** Process names and executable paths are modeled for platform interception support.
+- **Local proxy server:** Accepts both SOCKS5 and HTTP CONNECT clients on the same listener, with protocol auto-detection.
+- **Authenticated proxies:** Optional username/password authentication for SOCKS5 and HTTP outbounds.
+- **Async forwarding:** `asyncio`-based connections, bidirectional relay, retries, pooling, DNS caching, and per-outbound statistics.
+- **Operations CLI:** Setup wizard, config validation, hot reload on Unix, shell completions, logs, live monitoring, benchmarking, and `doctor` diagnostics.
+- **Cross-platform codebase:** Local proxy mode is Python-based; Linux and Windows transparent interception backends are under active development.
 
 ## Quick Start
 
+### 1. Install
+
+Requires **Python 3.10 or newer**.
+
 ```bash
-pip install proxy-tuner
+python -m pip install proxy-tuner
 ```
 
-**Add your proxies:**
+For development from source:
+
 ```bash
-proxy-tuner outbound add my-vpn    --type socks5 --host 127.0.0.1 --port 1080
-proxy-tuner outbound add my-http   --type http   --host 10.0.0.1 --port 8080
-proxy-tuner outbound add work-proxy --type socks5 --host proxy.work.com --port 1080 --username user --password pass
+git clone https://github.com/HoomanJ/ProxyTuner.git
+cd ProxyTuner
+python -m pip install -e ".[dev]"
 ```
 
-**Define routing rules (lower priority number = evaluated first):**
+### 2. Add upstream proxies
+
 ```bash
-# Firefox and Chrome go through VPN
-proxy-tuner rule add browsers-vpn --process "firefox,chrome" --outbound my-vpn --priority 10
+proxy-tuner outbound add vpn \
+  --type socks5 \
+  --host 127.0.0.1 \
+  --port 1080
 
-# Chinese domains go through HTTP proxy
-proxy-tuner rule add china-traffic --domain "*.cn,*.com.cn" --outbound my-http --priority 20
-
-# Local network stays direct
-proxy-tuner rule add local-direct --ip-cidr "192.168.0.0/16,10.0.0.0/8" --outbound direct --priority 5
-
-# Everything else goes through work proxy
-proxy-tuner rule add default --outbound work-proxy --priority 100
+proxy-tuner outbound add work \
+  --type http \
+  --host proxy.example.net \
+  --port 8080 \
+  --username my-user \
+  --password my-password
 ```
 
-**Start splitting traffic:**
+Test an outbound before using it:
+
+```bash
+proxy-tuner outbound test vpn
+proxy-tuner outbound list
+```
+
+> Proxy credentials are stored in the local JSON configuration file. Avoid placing real credentials in shell history when possible; use `proxy-tuner config edit` or another secure workflow.
+
+### 3. Create routing rules
+
+Rules with lower priority numbers are evaluated first. The built-in `direct` outbound is always available and does not need to be added.
+
+```bash
+# Keep private networks direct.
+proxy-tuner rule add private-network \
+  --ip-cidr "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.0/8" \
+  --outbound direct \
+  --priority 5
+
+# Route browser destinations through the SOCKS5 VPN.
+proxy-tuner rule add browser-sites \
+  --domain "*.example.com,*.example.org" \
+  --outbound vpn \
+  --priority 10
+
+# Route HTTPS traffic not caught by earlier rules through the work proxy.
+proxy-tuner rule add work-https \
+  --port 443 \
+  --outbound work \
+  --priority 20
+
+# Optional catch-all rule.
+proxy-tuner rule add default \
+  --outbound direct \
+  --priority 100
+```
+
+### 4. Start the local proxy
+
+```bash
+proxy-tuner start --foreground
+```
+
+The default listener is `127.0.0.1:10808`. Configure an application or command to use it as a SOCKS5 or HTTP proxy:
+
+```bash
+# SOCKS5 with hostname resolution through the proxy.
+curl --proxy socks5h://127.0.0.1:10808 https://example.com
+
+# HTTP CONNECT proxy.
+curl --proxy http://127.0.0.1:10808 https://example.com
+```
+
+In another terminal, inspect the service:
+
+```bash
+proxy-tuner status
+proxy-tuner stats
+proxy-tuner monitor
+```
+
+For daemon-style operation on supported Unix environments:
+
 ```bash
 proxy-tuner start
 proxy-tuner status
+proxy-tuner reload
 proxy-tuner stop
 ```
 
-## Routing Options
+## Routing Rules
 
-Rules can match on any combination of these (AND-combined within a rule):
+Every non-empty field in a rule must match. Values inside one field are alternatives.
 
-| Match Type | Example | What It Does |
-|-----------|---------|-------------|
-| `--process` | `firefox,chrome` | Match by process name |
-| `--domain` | `*.google.com` | Match by domain pattern |
-| `--domain-regex` | `.*\.cdn\..*` | Match by domain regex |
-| `--ip-cidr` | `10.0.0.0/8` | Match by IP range |
-| `--ip` | `8.8.8.8` | Match by specific IP |
-| `--port` | `443,8443` | Match by port |
-| `--port-range` | `8000-9000` | Match by port range |
+| CLI option | Example | Matches |
+| --- | --- | --- |
+| `--process` | `firefox,chrome` | Process name |
+| `--process-path` | `/opt/apps/*` | Executable path glob |
+| `--domain` | `*.example.com` | Domain wildcard |
+| `--domain-regex` | `.*\\.cdn\\..*` | Domain regular expression |
+| `--ip` | `8.8.8.8` | Exact IP address |
+| `--ip-cidr` | `10.0.0.0/8` | IPv4 or IPv6 network range |
+| `--ip-regex` | `^10\\.` | IP regular expression |
+| `--port` | `80,443` | Exact destination port |
+| `--port-range` | `8000-9000` | Destination port range |
+| `--url-regex` | `https?://.*` | URL regular expression |
 
-Combine multiple matchers in one rule for precise control:
+Combine matchers for precise policies:
+
 ```bash
-# Only Firefox traffic to Google domains on port 443
-proxy-tuner rule add firefox-google-ssl \
-  --process firefox --domain "*.google.com" --port 443 \
-  --outbound my-vpn --priority 10
+# All conditions are AND-combined.
+proxy-tuner rule add firefox-google \
+  --process firefox \
+  --domain "*.google.com" \
+  --port 443 \
+  --outbound vpn \
+  --priority 10
 ```
+
+Review and test the rule order:
+
+```bash
+proxy-tuner rule list
+proxy-tuner rule test firefox-google --process firefox --domain google.com --port 443
+proxy-tuner rule move firefox-google --priority 5
+proxy-tuner rule disable firefox-google
+proxy-tuner rule enable firefox-google
+```
+
+### Important scope note
+
+The local SOCKS5/HTTP forwarder receives the destination requested by the client, so domain, IP, and port rules are the most useful in the current local-proxy workflow. Process and process-path matching depend on platform-level interception, which is still being implemented. URL-regex matching is available in the rule engine but is not populated by every proxy protocol path yet.
 
 ## Outbound Types
 
-| Type | Config | Use Case |
-|------|--------|----------|
-| **SOCKS5** | `--host`, `--port`, optional `--username/--password` | VPN tunnels, SSH proxies |
-| **HTTP** | `--host`, `--port`, optional `--username/--password` | Corporate proxies |
-| **Direct** | (none) | Bypass proxy, connect directly |
+| Type | CLI configuration | Typical use |
+| --- | --- | --- |
+| **SOCKS5** | `--type socks5 --host HOST --port PORT` | VPN tunnels, SSH dynamic forwarding, privacy proxies |
+| **HTTP CONNECT** | `--type http --host HOST --port PORT` | Corporate, caching, or regional HTTP proxies |
+| **Direct** | Use the special outbound name `direct` | Bypass an upstream proxy |
 
 ## How It Works
 
-```
-Applications
-     │
-     ▼
-┌─────────────────────┐
-│     ProxyTuner      │
-│   Rule Engine       │
-│                     │
-│  process: firefox ──┼──► VPN Proxy (SOCKS5)
-│  domain:  *.cn ─────┼──► HTTP Proxy
-│  ip: 10.0.0.0/8 ────┼──► Direct
-│  default ───────────┼──► Work Proxy
-└─────────────────────┘
+```text
+Application
+    │ SOCKS5 or HTTP CONNECT
+    ▼
+127.0.0.1:10808
+    │
+    ▼
+ProxyTuner rule engine
+    │ first matching rule
+    ├──► Direct connection
+    ├──► SOCKS5 upstream
+    └──► HTTP CONNECT upstream
 ```
 
-ProxyTuner creates a local transparent proxy that intercepts traffic and evaluates each connection against your rules. On Linux it uses nftables/iptables with TPROXY + TUN interface. On Windows it uses WinDivert packet interception.
+ProxyTuner loads a JSON configuration, compiles routing rules, evaluates each incoming connection, connects through the selected outbound, and relays bytes in both directions. The local forwarder supports concurrent connections with asynchronous I/O and connection statistics.
 
 ## Platform Support
 
-| Platform | Mechanism | Privileges |
-|----------|-----------|------------|
-| Linux | nftables/iptables TPROXY + TUN | root/sudo |
-| Windows | WinDivert | admin |
-| macOS | SOCKS5/HTTP CONNECT proxy | none |
+| Platform | Local SOCKS5/HTTP proxy | Transparent interception | Notes |
+| --- | --- | --- | --- |
+| Linux | Supported | Experimental / in progress | TUN and iptables components require root and system networking tools |
+| Windows | Supported | Experimental / in progress | WinDivert and Administrator privileges are required for interception |
+| macOS | Supported | Not complete | Use the local proxy and configure applications manually |
 
-## Commands
+The reliable cross-platform workflow today is to run the local forwarder and configure each application to use `127.0.0.1:10808`. Transparent system-wide routing is not yet production-ready.
+
+## Configuration
+
+ProxyTuner creates a JSON config file on first use:
+
+- **Linux:** `~/.config/proxy-tuner/config.json`
+- **macOS:** `~/Library/Application Support/proxy-tuner/config.json`
+- **Windows:** `%APPDATA%\\proxy-tuner\\config.json`
+
+Useful configuration commands:
 
 ```bash
-# Outbound management
-proxy-tuner outbound add <name> --type <socks5|http> --host <host> --port <port>
+proxy-tuner config path
+proxy-tuner config show
+proxy-tuner config validate
+proxy-tuner config set settings.listen_port 10808
+proxy-tuner config edit
+proxy-tuner config init
+```
+
+Use a custom config path for isolated profiles or testing:
+
+```bash
+proxy-tuner --config ./proxy-tuner.json config validate
+proxy-tuner --config ./proxy-tuner.json status
+```
+
+ProxyTuner writes restrictive `0600` permissions for config files on Unix systems because proxy credentials may be stored there.
+
+## CLI Reference
+
+```bash
+# Global options
+proxy-tuner --help
+proxy-tuner --version
+proxy-tuner --config PATH <command>
+
+# Upstream proxies
+proxy-tuner outbound add NAME --type socks5|http --host HOST --port PORT
 proxy-tuner outbound list
-proxy-tuner outbound remove <name>
+proxy-tuner outbound test NAME
+proxy-tuner outbound remove NAME
 
 # Rule management
-proxy-tuner rule add <name> --outbound <outbound> [matchers...]
+proxy-tuner rule add NAME --outbound OUTBOUND [MATCH_OPTIONS]
 proxy-tuner rule list
-proxy-tuner rule remove <name>
-proxy-tuner rule enable/disable <name>
-proxy-tuner rule move <name> --priority <number>
+proxy-tuner rule test NAME [OPTIONS]
+proxy-tuner rule move NAME --priority NUMBER
+proxy-tuner rule enable NAME
+proxy-tuner rule disable NAME
+proxy-tuner rule remove NAME
 
-# Service control
-proxy-tuner start
+# Service and diagnostics
+proxy-tuner start [--foreground] [--log-level LEVEL]
 proxy-tuner stop
 proxy-tuner status
 proxy-tuner reload
-
-# Configuration
-proxy-tuner config show
-proxy-tuner config set <key> <value>
-proxy-tuner config validate
-proxy-tuner config init
-
-# Utilities
 proxy-tuner doctor
-proxy-tuner stats
-proxy-tuner version
+proxy-tuner stats [--reset]
+proxy-tuner monitor
+proxy-tuner bench
+proxy-tuner logs [--lines NUMBER] [--follow]
+proxy-tuner setup
+
+# Shell completion
+proxy-tuner completions bash
+proxy-tuner completions zsh
+proxy-tuner completions fish
 ```
 
-## Requirements
+Run `proxy-tuner COMMAND --help` for the complete options for any command.
 
-- Python 3.10+
-- Linux: `nftables` or `iptables` (root/sudo required)
-- Windows: [WinDivert](https://reqrypt.org/windivert.html) driver (admin required)
-- macOS: none (uses standard proxy support)
+## Troubleshooting
 
-## Documentation
+### Check prerequisites
 
-- [Architecture](docs/architecture.md) — technical design and internals
-- [Configuration](docs/configuration.md) — config file reference
-- [Usage Guide](docs/usage.md) — CLI commands and examples
+```bash
+proxy-tuner doctor
+```
+
+### Proxy connection fails
+
+```bash
+proxy-tuner outbound test vpn
+proxy-tuner logs --lines 100
+proxy-tuner start --foreground --log-level debug
+```
+
+### Rules do not match
+
+```bash
+proxy-tuner rule list
+proxy-tuner rule test RULE_NAME --domain example.com --port 443
+proxy-tuner config validate
+```
+
+Confirm that the rule has the intended priority, is enabled, and references an existing outbound. Remember that a local proxy cannot infer the originating application process from every client connection.
+
+### Permission or networking errors on Linux/Windows
+
+Use the local proxy mode first. Transparent interception requires elevated privileges and platform-specific dependencies:
+
+- Linux: `iptables`/`iproute2`, a usable TUN device, and root or `sudo`.
+- Windows: WinDivert and an Administrator shell.
+
+## Development
+
+```bash
+git clone https://github.com/HoomanJ/ProxyTuner.git
+cd ProxyTuner
+python -m pip install -e ".[dev]"
+
+# Run the test suite
+pytest tests/ -v
+
+# Lint and type-check
+ruff check src/ tests/
+mypy src/proxy_tuner/ --ignore-missing-imports
+```
+
+See the [contribution guide](CONTRIBUTING.md), [usage guide](docs/usage.md), [configuration reference](docs/configuration.md), and [architecture notes](docs/architecture.md) for more detail.
+
+## Search Terms
+
+ProxyTuner is relevant to developers searching for a **Python proxy router**, **multi-proxy manager**, **SOCKS5 routing**, **HTTP CONNECT proxy**, **split tunneling**, **per-domain proxy**, **per-IP proxy**, **CIDR-based routing**, **per-port routing**, **proxy chaining**, **local proxy server**, or **rule-based network traffic routing**.
 
 ## License
 
