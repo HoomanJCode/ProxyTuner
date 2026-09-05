@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/proxy-tuner)](https://pypi.org/project/proxy-tuner/)
 [![Python](https://img.shields.io/pypi/pyversions/proxy-tuner)](https://pypi.org/project/proxy-tuner/)
 
-> **Alpha software:** ProxyTuner is under active development. Do not use it for production traffic, sensitive workspaces, or security-critical workloads. Review the configuration and test every proxy before relying on it.
+> **Alpha software / experimental:** ProxyTuner is under active development and is intended for laboratory use only. Do not use it for production traffic, sensitive workspaces, or security-critical workloads. Review the configuration and test every proxy before relying on it.
 
 **ProxyTuner is a Python CLI that routes network connections through multiple SOCKS5, HTTP CONNECT, or direct outbounds using flexible rules.** Run one local proxy, then send different destinations through different upstream proxies for practical split tunneling and proxy chaining workflows.
 
