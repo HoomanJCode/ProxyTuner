@@ -37,7 +37,7 @@ class ConnectionPool:
     max_idle_seconds: float = 60.0
     _pools: dict[str, list[PooledConnection]] = field(default_factory=dict)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    _cleanup_task: asyncio.Task | None = None
+    _cleanup_task: asyncio.Task[None] | None = None
 
     @property
     def total_connections(self) -> int:

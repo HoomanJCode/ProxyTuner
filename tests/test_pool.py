@@ -8,6 +8,20 @@ import time
 from proxy_tuner.pool import ConnectionPool
 
 
+class MockWriter:
+    def __init__(self) -> None:
+        self._closing = False
+
+    def is_closing(self) -> bool:
+        return self._closing
+
+    def close(self) -> None:
+        self._closing = True
+
+    async def wait_closed(self) -> None:
+        return None
+
+
 class TestConnectionPool:
     def test_initial_state(self) -> None:
         pool = ConnectionPool()
@@ -27,9 +41,7 @@ class TestConnectionPool:
 
             # Create mock reader/writer
             reader = asyncio.StreamReader()
-            protocol = asyncio.StreamReaderProtocol(reader)
-            transport = asyncio.Transport()
-            writer = asyncio.StreamWriter(transport, protocol, reader, asyncio.get_event_loop())
+            writer = MockWriter()
 
             await pool.release("example.com", 80, reader, writer)
             assert pool.total_connections == 1
@@ -49,14 +61,10 @@ class TestConnectionPool:
             pool = ConnectionPool()
 
             reader1 = asyncio.StreamReader()
-            protocol1 = asyncio.StreamReaderProtocol(reader1)
-            transport1 = asyncio.Transport()
-            writer1 = asyncio.StreamWriter(transport1, protocol1, reader1, asyncio.get_event_loop())
+            writer1 = MockWriter()
 
             reader2 = asyncio.StreamReader()
-            protocol2 = asyncio.StreamReaderProtocol(reader2)
-            transport2 = asyncio.Transport()
-            writer2 = asyncio.StreamWriter(transport2, protocol2, reader2, asyncio.get_event_loop())
+            writer2 = MockWriter()
 
             await pool.release("host1.com", 80, reader1, writer1)
             await pool.release("host2.com", 80, reader2, writer2)
@@ -74,9 +82,7 @@ class TestConnectionPool:
             pool = ConnectionPool()
 
             reader = asyncio.StreamReader()
-            protocol = asyncio.StreamReaderProtocol(reader)
-            transport = asyncio.Transport()
-            writer = asyncio.StreamWriter(transport, protocol, reader, asyncio.get_event_loop())
+            writer = MockWriter()
 
             await pool.release("example.com", 80, reader, writer)
             assert pool.total_connections == 1
@@ -93,9 +99,7 @@ class TestConnectionPool:
             from proxy_tuner.pool import PooledConnection
 
             reader = asyncio.StreamReader()
-            protocol = asyncio.StreamReaderProtocol(reader)
-            transport = asyncio.Transport()
-            writer = asyncio.StreamWriter(transport, protocol, reader, asyncio.get_event_loop())
+            writer = MockWriter()
 
             conn = PooledConnection(
                 reader=reader, writer=writer,
@@ -111,9 +115,7 @@ class TestConnectionPool:
 
             for _i in range(4):
                 reader = asyncio.StreamReader()
-                protocol = asyncio.StreamReaderProtocol(reader)
-                transport = asyncio.Transport()
-                writer = asyncio.StreamWriter(transport, protocol, reader, asyncio.get_event_loop())
+                writer = MockWriter()
                 await pool.release("example.com", 80, reader, writer)
 
             # Should only keep max_size connections

@@ -30,12 +30,12 @@ class WindowsBackend(PlatformBackend):
     def __init__(self) -> None:
         self._running = False
         self._handle = None  # WinDivert handle
-        self._forwarder_task: asyncio.Task | None = None
+        self._forwarder_task: asyncio.Task[None] | None = None
 
     def _check_admin(self) -> bool:
         """Check if running with administrator privileges."""
         try:
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
+            return bool(ctypes.windll.shell32.IsUserAnAdmin())  # type: ignore[attr-defined]
         except (AttributeError, OSError):
             return False
 
@@ -79,7 +79,7 @@ class WindowsBackend(PlatformBackend):
 
         # Fallback: try ctypes
         try:
-            self._windivert = ctypes.WinDLL("WinDivert.dll")
+            self._windivert = ctypes.WinDLL("WinDivert.dll")  # type: ignore[attr-defined]
             logger.info("Using WinDivert.dll via ctypes")
             return
         except OSError:
@@ -134,7 +134,7 @@ class WindowsBackend(PlatformBackend):
             import ctypes
             from ctypes import wintypes
 
-            iphlpapi = ctypes.WinDLL("iphlpapi.dll")
+            iphlpapi = ctypes.WinDLL("iphlpapi.dll")  # type: ignore[attr-defined]
 
             # Get TCP table size
             size = wintypes.DWORD(0)
@@ -222,13 +222,6 @@ class WindowsBackend(PlatformBackend):
 
         except Exception:
             return None
-
-    def _check_admin(self) -> bool:
-        """Check if running as Administrator."""
-        try:
-            return ctypes.windll.shell32.IsUserAnAdmin() != 0
-        except (AttributeError, OSError):
-            return False
 
     def request_admin_elevation(self) -> None:
         """Re-launch with admin privileges via UAC."""

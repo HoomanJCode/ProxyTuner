@@ -82,15 +82,15 @@ def _encode_address(host: str, port: int) -> bytes:
     import ipaddress
 
     try:
-        addr = ipaddress.IPv4Address(host)
-        return struct.pack("!B", SOCKS5_ATYP_IPV4) + addr.packed + struct.pack("!H", port)
+        addr4 = ipaddress.IPv4Address(host)
+        return struct.pack("!B", SOCKS5_ATYP_IPV4) + addr4.packed + struct.pack("!H", port)
     except ValueError:
         pass
 
     # Try IPv6
     try:
-        addr = ipaddress.IPv6Address(host)
-        return struct.pack("!B", SOCKS5_ATYP_IPV6) + addr.packed + struct.pack("!H", port)
+        addr6 = ipaddress.IPv6Address(host)
+        return struct.pack("!B", SOCKS5_ATYP_IPV6) + addr6.packed + struct.pack("!H", port)
     except ValueError:
         pass
 

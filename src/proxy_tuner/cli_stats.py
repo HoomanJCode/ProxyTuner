@@ -62,7 +62,7 @@ def stats(ctx: click.Context, reset: bool) -> None:
     console.print(table)
 
 
-def _format_bytes(n: int) -> str:
+def _format_bytes(n: float) -> str:
     """Format bytes into human-readable string."""
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if abs(n) < 1024:

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import struct
+from unittest.mock import patch
 
 from proxy_tuner.config import Config, DirectOutbound, MatchCondition, Rule, Settings
 from proxy_tuner.forwarder import Forwarder, ForwarderStats
@@ -154,6 +155,46 @@ class TestHttpConnectHandling:
                     await writer.wait_closed()
             finally:
                 await forwarder.stop()
+
+        asyncio.run(_test())
+
+
+class TestTransparentForwarding:
+    def test_redirected_raw_tcp_is_forwarded_without_proxy_handshake(self) -> None:
+        async def _test() -> None:
+            async def echo(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+                try:
+                    data = await reader.read(1024)
+                    writer.write(data)
+                    await writer.drain()
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
+            target = await asyncio.start_server(echo, "127.0.0.1", 0)
+            target_port = target.sockets[0].getsockname()[1]
+            forwarder = Forwarder(config=_make_config(), transparent=True)
+            await forwarder.start()
+            assert forwarder._server is not None
+            proxy_port = forwarder._server.sockets[0].getsockname()[1]
+
+            try:
+                with patch(
+                    "proxy_tuner.forwarder.get_original_dst",
+                    return_value=("127.0.0.1", target_port),
+                ):
+                    reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+                    writer.write(b"transparent-payload")
+                    await writer.drain()
+                    assert await asyncio.wait_for(reader.readexactly(19), timeout=2) == (
+                        b"transparent-payload"
+                    )
+                    writer.close()
+                    await writer.wait_closed()
+            finally:
+                await forwarder.stop()
+                target.close()
+                await target.wait_closed()
 
         asyncio.run(_test())
 

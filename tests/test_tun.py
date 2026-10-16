@@ -5,9 +5,20 @@ Tests the IP header parsing without requiring actual TUN access.
 
 from __future__ import annotations
 
+import socket
 import struct
+from unittest.mock import Mock
 
 from proxy_tuner.tun import TunManager, get_original_dst
+
+
+def test_get_original_dst_ipv4_uses_linux_socket_option() -> None:
+    sock = Mock()
+    sock.getsockopt.return_value = struct.pack(
+        "!HH4s8s", socket.AF_INET, 443, socket.inet_aton("203.0.113.8"), b"\0" * 8
+    )
+    assert get_original_dst(sock, socket.AF_INET) == ("203.0.113.8", 443)
+    sock.getsockopt.assert_called_once_with(socket.SOL_IP, 80, 16)
 
 
 class TestIPHeaderParsing:

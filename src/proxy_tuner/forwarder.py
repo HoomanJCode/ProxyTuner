@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import socket
 import struct
 import time
 from asyncio import CancelledError, InvalidStateError
@@ -32,6 +33,7 @@ from proxy_tuner.socks5 import (
     SOCKS5_REP_SUCCESS,
     SOCKS5_VERSION,
 )
+from proxy_tuner.tun import get_original_dst
 
 logger = logging.getLogger("proxy_tuner.forwarder")
 
@@ -73,6 +75,7 @@ class Forwarder:
     pool: ConnectionPool = field(default_factory=ConnectionPool)
     dns: DnsResolver = field(default_factory=DnsResolver)
     stats: ForwarderStats = field(default_factory=ForwarderStats)
+    transparent: bool = False
     _server: asyncio.Server | None = None
     _running: bool = False
 
@@ -137,6 +140,25 @@ class Forwarder:
         logger.debug("New connection from %s", addr)
 
         try:
+            # Locally redirected TCP sockets arrive without a SOCKS/HTTP
+            # preamble. Recover their pre-NAT destination and relay raw bytes.
+            if self.transparent:
+                sock = client_writer.get_extra_info("socket")
+                if sock is not None:
+                    original_dst = get_original_dst(
+                        sock, getattr(sock, "family", socket.AF_INET)
+                    )
+                    if original_dst is not None:
+                        await self._forward_to_outbound(
+                            client_reader,
+                            client_writer,
+                            original_dst[0],
+                            original_dst[1],
+                            is_socks5=False,
+                            is_transparent=True,
+                        )
+                        return
+
             # Read first byte to determine protocol (SOCKS5 starts with 0x05)
             first_byte = await asyncio.wait_for(client_reader.readexactly(1), timeout=30)
             if not first_byte:
@@ -318,6 +340,7 @@ class Forwarder:
         target_host: str,
         target_port: int,
         is_socks5: bool,
+        is_transparent: bool = False,
     ) -> None:
         """Forward a connection through the resolved outbound."""
         # Build connection info for rule engine
@@ -332,6 +355,8 @@ class Forwarder:
 
         if outbound_name is None:
             logger.warning("No rule matched for %s:%d", target_host, target_port)
+            if is_transparent:
+                return
             if is_socks5:
                 await self._send_socks5_error(client_writer, SOCKS5_REP_GENERAL_FAILURE)
             else:
@@ -346,7 +371,9 @@ class Forwarder:
             )
 
             # Send success response
-            if is_socks5:
+            if is_transparent:
+                pass
+            elif is_socks5:
                 # SOCKS5 success reply
                 client_writer.write(
                     struct.pack("!BBBB", SOCKS5_VERSION, SOCKS5_REP_SUCCESS, 0x00, 0x01)
@@ -367,7 +394,9 @@ class Forwarder:
 
         except OutboundError as e:
             logger.error("Outbound error for %s:%d: %s", target_host, target_port, e)
-            if is_socks5:
+            if is_transparent:
+                pass
+            elif is_socks5:
                 # Map error to SOCKS5 reply
                 err_code = SOCKS5_REP_CONNECTION_REFUSED
                 if "unreachable" in str(e).lower():
@@ -443,7 +472,7 @@ class Forwarder:
 
             # Collect stats — must handle InvalidStateError from
             # Python 3.14 asyncio where cancelled futures may not be set.
-            def _safe_result(t: asyncio.Task) -> int:
+            def _safe_result(t: asyncio.Task[int]) -> int:
                 try:
                     if t.cancelled():
                         return 0

@@ -124,7 +124,7 @@ class OutboundManager:
 
         try:
             if isinstance(ob, Socks5Outbound):
-                result = await socks5_connect(
+                socks5_result = await socks5_connect(
                     proxy_host=ob.host,
                     proxy_port=ob.port,
                     target_host=target_host,
@@ -135,10 +135,10 @@ class OutboundManager:
                 )
                 latency = (time.monotonic() - start) * 1000
                 self.stats.setdefault(outbound_name, OutboundStats()).record_connection(latency)
-                return result.reader, result.writer
+                return socks5_result.reader, socks5_result.writer
 
             elif isinstance(ob, HttpOutbound):
-                result = await http_connect(
+                http_result = await http_connect(
                     proxy_host=ob.host,
                     proxy_port=ob.port,
                     target_host=target_host,
@@ -149,7 +149,7 @@ class OutboundManager:
                 )
                 latency = (time.monotonic() - start) * 1000
                 self.stats.setdefault(outbound_name, OutboundStats()).record_connection(latency)
-                return result.reader, result.writer
+                return http_result.reader, http_result.writer
 
             elif isinstance(ob, DirectOutbound):
                 reader, writer = await asyncio.wait_for(

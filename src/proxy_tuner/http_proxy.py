@@ -104,8 +104,8 @@ async def http_connect(
         await writer.drain()
 
         # Read status line
-        status_line = await asyncio.wait_for(reader.readline(), timeout=timeout)
-        status_line = status_line.decode("utf-8", errors="replace").strip()
+        status_line_bytes = await asyncio.wait_for(reader.readline(), timeout=timeout)
+        status_line = status_line_bytes.decode("utf-8", errors="replace").strip()
 
         # Parse status code
         parts = status_line.split(" ", 2)

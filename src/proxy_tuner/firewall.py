@@ -1,8 +1,4 @@
-"""nftables/iptables rule management for traffic redirection.
-
-Handles setting up and tearing down firewall rules that redirect
-traffic to the TUN interface for transparent proxying.
-"""
+"""Linux iptables rules for transparent TCP proxying."""
 
 from __future__ import annotations
 
@@ -10,9 +6,11 @@ import contextlib
 import logging
 import os
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 logger = logging.getLogger("proxy_tuner.firewall")
+
+CHAIN = "PROXYTUNER"
 
 
 class FirewallError(Exception):
@@ -21,152 +19,104 @@ class FirewallError(Exception):
 
 @dataclass
 class FirewallManager:
-    """Manages nftables/iptables rules for transparent proxying.
+    """Redirect locally generated TCP connections to the proxy listener.
 
-    Strategy:
-    1. Create a routing rule that sends traffic from specific UIDs
-       to the TUN interface (ip rule add fwmark ... lookup tun).
-    2. Use iptables MARK to tag packets from specific processes.
-    3. Route marked packets through the TUN.
+    The proxy process UID is exempted so its upstream connections do not loop
+    back into the listener. Rules live in a dedicated chain for safe cleanup.
     """
 
-    tun_name: str = "proxytun0"
+    tun_name: str = "proxytun0"  # Retained for config compatibility.
     tun_address: str = "10.0.0.1"
     listen_port: int = 10808
-    _tables_added: bool = False
+    bypass_uids: list[int] = field(default_factory=list)
+    bypass_ports: list[int] = field(default_factory=list)
     _rules_added: bool = False
 
     def setup(self) -> None:
-        """Set up all firewall rules for transparent proxying."""
+        """Install an IPv4 OUTPUT redirect, rolling back partial setup."""
         if self._rules_added:
             return
 
         try:
-            self._setup_routing()
             self._setup_iptables()
             self._rules_added = True
-            logger.info("Firewall rules set up for TUN %s", self.tun_name)
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            raise FirewallError(f"Failed to set up firewall rules: {e}") from e
+            logger.info("Local TCP traffic redirected to port %d", self.listen_port)
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+            self._remove_iptables()
+            raise FirewallError(f"Failed to set up transparent proxy rules: {e}") from e
 
     def teardown(self) -> None:
-        """Remove all firewall rules."""
+        """Remove only ProxyTuner's redirect rules."""
         if not self._rules_added:
             return
+        self._remove_iptables()
+        self._rules_added = False
 
-        try:
-            self._remove_iptables()
-            self._remove_routing()
-            self._rules_added = False
-            logger.info("Firewall rules removed")
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            logger.warning("Error during firewall teardown: %s", e)
-
-    def _run(self, cmd: list[str]) -> subprocess.CompletedProcess:
-        """Run a shell command, return result."""
+    def _run(self, cmd: list[str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=10)
 
-    def _setup_routing(self) -> None:
-        """Set up routing rules to direct traffic through TUN."""
-        # Create a custom routing table for the TUN
-        # Table 100 = proxytuner
-        table_id = 100
-
-        # Add table entry (idempotent)
-        self._run(["ip", "rule", "add", "fwmark", "0x1", "lookup", str(table_id)])
-        # Add default route through TUN in custom table
-        self._run([
-            "ip", "route", "add", "default",
-            "dev", self.tun_name,
-            "table", str(table_id),
-        ])
-
-        logger.info("Routing rules added (table %d via %s)", table_id, self.tun_name)
-
-    def _remove_routing(self) -> None:
-        """Remove routing rules."""
-        table_id = 100
-        with contextlib.suppress(subprocess.CalledProcessError):
-            self._run(["ip", "rule", "del", "fwmark", "0x1", "lookup", str(table_id)])
-        with contextlib.suppress(subprocess.CalledProcessError):
-            self._run(["ip", "route", "flush", "table", str(table_id)])
+    @staticmethod
+    def _rule_exists(rule: list[str]) -> bool:
+        try:
+            subprocess.run(
+                ["iptables", "-t", "nat", "-C", *rule],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        except FileNotFoundError:
+            return False
 
     def _setup_iptables(self) -> None:
-        """Set up iptables rules for traffic interception."""
-        # Mark packets from the local proxy process so they're NOT re-routed
-        # (prevents routing loops)
-        uid = str(os.getuid()) if hasattr(os, "getuid") else "0"
+        chain = ["-t", "nat", CHAIN]
+        try:
+            self._run(["iptables", "-t", "nat", "-N", CHAIN])
+        except subprocess.CalledProcessError:
+            # A prior crashed process may have left our chain behind.
+            self._run(["iptables", *chain[:2], "-F", CHAIN])
 
-        # MARK all traffic (except from our own process) and route through TUN
-        # Using mangle table for MARK
+        proxy_uid = os.getuid() if hasattr(os, "getuid") else 0
+        for uid in dict.fromkeys([proxy_uid, *self.bypass_uids]):
+            self._run([
+                "iptables", "-t", "nat", "-A", CHAIN,
+                "-m", "owner", "--uid-owner", str(uid), "-j", "RETURN",
+            ])
+        for port in dict.fromkeys([self.listen_port, *self.bypass_ports]):
+            self._run([
+                "iptables", "-t", "nat", "-A", CHAIN,
+                "-p", "tcp", "--dport", str(port), "-j", "RETURN",
+            ])
         self._run([
-            "iptables", "-t", "mangle", "-A", "PREROUTING",
-            "-j", "MARK", "--set-mark", "0x1",
+            "iptables", "-t", "nat", "-A", CHAIN,
+            "-p", "tcp", "-j", "REDIRECT", "--to-ports", str(self.listen_port),
         ])
 
-        # Allow traffic from our process through normally (prevent loop)
-        self._run([
-            "iptables", "-t", "mangle", "-I", "PREROUTING",
-            "-m", "owner", "--uid-owner", uid,
-            "-j", "ACCEPT",
-        ])
-
-        # Redirect TCP/UDP traffic to the local proxy port
-        # This makes the traffic go through our forwarder
-        self._run([
-            "iptables", "-t", "nat", "-A", "PREROUTING",
-            "-p", "tcp", "--syn",
-            "-j", "REDIRECT", "--to-port", str(self.listen_port),
-        ])
-
-        logger.info("iptables rules added")
+        output_rule = ["OUTPUT", "-p", "tcp", "-j", CHAIN]
+        if not self._rule_exists(output_rule):
+            self._run(["iptables", "-t", "nat", "-I", *output_rule])
 
     def _remove_iptables(self) -> None:
-        """Remove iptables rules."""
-        uid = str(os.getuid()) if hasattr(os, "getuid") else "0"
-        with contextlib.suppress(subprocess.CalledProcessError):
-            self._run([
-                "iptables", "-t", "mangle", "-D", "PREROUTING",
-                "-j", "MARK", "--set-mark", "0x1",
-            ])
-        with contextlib.suppress(subprocess.CalledProcessError):
-            self._run([
-                "iptables", "-t", "mangle", "-D", "PREROUTING",
-                "-m", "owner", "--uid-owner", uid,
-                "-j", "ACCEPT",
-            ])
-        with contextlib.suppress(subprocess.CalledProcessError):
-            self._run([
-                "iptables", "-t", "nat", "-D", "PREROUTING",
-                "-p", "tcp", "--syn",
-                "-j", "REDIRECT", "--to-port", str(self.listen_port),
-            ])
+        output_rule = ["OUTPUT", "-p", "tcp", "-j", CHAIN]
+        for cmd in (
+            ["iptables", "-t", "nat", "-D", *output_rule],
+            ["iptables", "-t", "nat", "-F", CHAIN],
+            ["iptables", "-t", "nat", "-X", CHAIN],
+        ):
+            with contextlib.suppress(subprocess.CalledProcessError, FileNotFoundError):
+                self._run(cmd)
 
     def add_uid_rule(self, uid: int) -> None:
-        """Add a rule to route traffic from a specific UID through the TUN."""
-        try:
-            # Mark packets from this UID
-            self._run([
-                "iptables", "-t", "mangle", "-I", "PREROUTING",
-                "-m", "owner", "--uid-owner", str(uid),
-                "-j", "MARK", "--set-mark", "0x1",
-            ])
-            logger.info("Added iptables rule for UID %d", uid)
-        except subprocess.CalledProcessError as e:
-            logger.warning("Failed to add UID rule for %d: %s", uid, e)
+        """Kept for API compatibility; transparent routing currently uses a process UID bypass."""
+        logger.debug("Per-UID routing is not implemented (requested UID %d)", uid)
 
     def remove_uid_rule(self, uid: int) -> None:
-        """Remove a UID-based routing rule."""
-        with contextlib.suppress(subprocess.CalledProcessError):
-            self._run([
-                "iptables", "-t", "mangle", "-D", "PREROUTING",
-                "-m", "owner", "--uid-owner", str(uid),
-                "-j", "MARK", "--set-mark", "0x1",
-            ])
+        """Kept for API compatibility; no per-UID rule is installed."""
+        logger.debug("No per-UID rule to remove for UID %d", uid)
 
     def is_setup(self) -> bool:
-        """Check if firewall rules are currently active."""
+        """Return whether setup completed in this process."""
         return self._rules_added
-
-
-

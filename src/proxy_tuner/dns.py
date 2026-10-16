@@ -77,7 +77,7 @@ class DnsResolver:
         self._stats = {"queries": 0, "cache_hits": 0, "failures": 0}
 
     @property
-    def stats(self) -> dict:
+    def stats(self) -> dict[str, int]:
         return self._stats.copy()
 
     async def resolve(self, hostname: str) -> str | None:
@@ -128,7 +128,7 @@ class DnsResolver:
                 socket.AF_INET,
             )
             if infos:
-                return infos[0][4][0]  # First IPv4 address
+                return str(infos[0][4][0])  # First IPv4 address
         except socket.gaierror:
             pass
         return None
@@ -243,7 +243,7 @@ class DnsProtocol(asyncio.DatagramProtocol):
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         pass
 
-    def datagram_received(self, data: bytes, addr: tuple) -> None:
+    def datagram_received(self, data: bytes, addr: tuple[object, ...]) -> None:
         self._response = data
         self._event.set()
 

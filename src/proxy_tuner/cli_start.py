@@ -13,7 +13,7 @@ import click
 from rich.console import Console
 
 from proxy_tuner import __version__
-from proxy_tuner.config import ConfigManager
+from proxy_tuner.config import Config, ConfigManager
 
 console = Console()
 
@@ -57,10 +57,43 @@ def _remove_pid(config_manager: ConfigManager) -> None:
 @click.command("start")
 @click.option("--foreground", "-f", is_flag=True, help="Run in foreground (don't daemonize)")
 @click.option("--log-level", default=None, help="Override log level (debug/info/warning/error)")
+@click.option(
+    "--transparent",
+    is_flag=True,
+    help="Redirect local Linux TCP traffic into the proxy (requires root)",
+)
+@click.option(
+    "--bypass-uid",
+    "bypass_uids",
+    type=click.IntRange(min=0),
+    multiple=True,
+    help="Additional Linux UID to bypass transparent redirection (repeatable)",
+)
+@click.option(
+    "--bypass-port",
+    "bypass_ports",
+    type=click.IntRange(min=1, max=65535),
+    multiple=True,
+    help="Additional local TCP port to bypass transparent redirection (repeatable)",
+)
 @click.pass_context
-def start(ctx: click.Context, foreground: bool, log_level: str | None) -> None:
+def start(
+    ctx: click.Context,
+    foreground: bool,
+    log_level: str | None,
+    transparent: bool,
+    bypass_uids: tuple[int, ...],
+    bypass_ports: tuple[int, ...],
+) -> None:
     """Start the proxy tuner."""
     manager: ConfigManager = ctx.obj["config_manager"]
+
+    if transparent and sys.platform not in ("linux", "android"):
+        raise click.ClickException("--transparent is currently supported only on Linux")
+    if transparent and os.geteuid() != 0:
+        raise click.ClickException("--transparent requires root; run with sudo")
+    if (bypass_uids or bypass_ports) and not transparent:
+        raise click.ClickException("--bypass-uid and --bypass-port require --transparent")
 
     # Check if already running
     existing_pid = _read_pid(manager)
@@ -114,44 +147,96 @@ def start(ctx: click.Context, foreground: bool, log_level: str | None) -> None:
         console.print("[green]Starting ProxyTuner in foreground...[/green]")
         _write_pid(manager, os.getpid())
         try:
-            asyncio.run(_run_loop(manager, config))
+            asyncio.run(
+                _run_loop(
+                    manager,
+                    config,
+                    transparent=transparent,
+                    bypass_uids=bypass_uids,
+                    bypass_ports=bypass_ports,
+                )
+            )
         except KeyboardInterrupt:
             console.print("\n[yellow]Shutting down...[/yellow]")
         finally:
             _remove_pid(manager)
             console.print("[dim]Stopped.[/dim]")
     else:
-        # Daemon mode
+        # Daemon mode: report success only after the listener and firewall
+        # backend have completed startup.
+        ready_read, ready_write = os.pipe()
         pid = os.fork()
         if pid > 0:
-            # Parent process
+            os.close(ready_write)
+            with os.fdopen(ready_read, encoding="utf-8") as ready_pipe:
+                result = ready_pipe.readline().strip()
+            if result != "READY":
+                with contextlib.suppress(ChildProcessError):
+                    os.waitpid(pid, 0)
+                message = result.removeprefix("ERROR:").strip() or "daemon exited during startup"
+                raise click.ClickException(f"ProxyTuner failed to start: {message}")
             console.print(f"[green]✓[/green] ProxyTuner started (PID {pid})")
             return
 
         # Child process — daemon
+        os.close(ready_read)
         os.setsid()
         _write_pid(manager, os.getpid())
         try:
-            asyncio.run(_run_loop(manager, config))
-        except Exception:
-            pass
+            asyncio.run(
+                _run_loop(
+                    manager,
+                    config,
+                    transparent=transparent,
+                    bypass_uids=bypass_uids,
+                    bypass_ports=bypass_ports,
+                    ready_fd=ready_write,
+                )
+            )
+        except Exception as e:
+            with contextlib.suppress(OSError):
+                os.write(ready_write, f"ERROR:{e}\n".encode())
         finally:
+            os.close(ready_write)
             _remove_pid(manager)
 
 
-async def _run_loop(manager: ConfigManager, config: object) -> None:
+async def _run_loop(
+    manager: ConfigManager,
+    config: Config,
+    transparent: bool = False,
+    bypass_uids: tuple[int, ...] = (),
+    bypass_ports: tuple[int, ...] = (),
+    ready_fd: int | None = None,
+) -> None:
     """Main async loop — starts forwarder and waits for shutdown."""
     from proxy_tuner.forwarder import Forwarder
 
-    forwarder = Forwarder(config=config)
+    forwarder = Forwarder(config=config, transparent=transparent)
+    backend = None
     try:
         await forwarder.start()
+        if transparent:
+            from proxy_tuner.platform.linux import LinuxBackend
+
+            backend = LinuxBackend()
+            await backend.start(
+                config.settings.listen_port,
+                config.settings.tun_name,
+                config.settings.tun_address,
+                bypass_uids=bypass_uids,
+                bypass_ports=bypass_ports,
+            )
         console.print(
             f"  Listening on 127.0.0.1:{config.settings.listen_port}"
         )
+        if transparent:
+            console.print("  Linux transparent TCP redirect: enabled")
         console.print(f"  Rules: {len(config.rules)} loaded")
         console.print(f"  Outbounds: {len(config.outbounds)} configured")
         console.print("  Press Ctrl+C to stop.")
+        if ready_fd is not None:
+            os.write(ready_fd, b"READY\n")
 
         # Keep running until stopped
         stop_event = asyncio.Event()
@@ -188,6 +273,8 @@ async def _run_loop(manager: ConfigManager, config: object) -> None:
                     console.print(f"  [red]Reload failed:[/red] {e}")
 
     finally:
+        if backend:
+            await backend.stop()
         await forwarder.stop()
 
 

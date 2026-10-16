@@ -228,17 +228,29 @@ proxy-tuner rule remove firefox-vpn
 ### Start Tuning
 
 ```bash
-# Start as daemon (background)
-sudo proxy-tuner start
+# Start the local SOCKS5/HTTP listener (configure applications to use it)
+proxy-tuner start
 
-# Start in foreground (logs to stdout)
-sudo proxy-tuner start --foreground
+# Opt in to Linux local IPv4 TCP redirection (requires root and iptables)
+sudo proxy-tuner --config "$HOME/.config/proxy-tuner/config.json" \
+  start --transparent --foreground
+
+# Exclude another user's proxy service and its local inbound ports to avoid loops
+sudo proxy-tuner --config "$HOME/.config/proxy-tuner/config.json" \
+  start --transparent --bypass-uid 1001 \
+  --bypass-port 1080 --bypass-port 1081
 ```
+
+Transparent mode redirects local IPv4 TCP connections from users other than
+ProxyTuner's own UID. `--bypass-uid` and `--bypass-port` can exclude other
+proxy services. The configured listener port and ProxyTuner's upstream
+connections are always bypassed. UDP, IPv6, and domain/process rule matching
+for redirected raw TCP connections are not supported yet.
 
 ### Stop Tuning
 
 ```bash
-proxy-tuner stop
+sudo proxy-tuner --config "$HOME/.config/proxy-tuner/config.json" stop
 ```
 
 ### Check Status
@@ -253,7 +265,6 @@ Status:     running
 PID:        12345
 Uptime:     2h 15m
 Listening:  127.0.0.1:10808
-TUN:        proxytun0 (10.0.0.1/24)
 
 Outbounds:
   my-vpn (socks5):   connected, 1.2 GB transferred
@@ -404,14 +415,17 @@ proxy-tuner config set log_level debug
 sudo proxy-tuner start
 ```
 
-### TUN Interface Already Exists
+### Transparent Redirect Fails to Start
 
 ```bash
-# Clean up manually
-sudo ip tuntap del proxytun0 mode tun
-# Then restart
-sudo proxy-tuner start
+# Check that the required command and privileges are available
+sudo iptables -t nat -S
+sudo proxy-tuner start --transparent --foreground --log-level debug
 ```
+
+ProxyTuner removes its own `PROXYTUNER` NAT chain on shutdown. If the process
+was killed before cleanup, remove that chain's jump and chain manually before
+starting again.
 
 ### Proxy Connection Failed
 

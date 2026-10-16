@@ -52,7 +52,7 @@ class TunManager:
         self.mtu = mtu
         self._fd: int | None = None
         self._running = False
-        self._read_task: asyncio.Task | None = None
+        self._read_task: asyncio.Task[None] | None = None
 
     @property
     def is_running(self) -> bool:
@@ -160,7 +160,7 @@ class TunManager:
         except OSError as e:
             raise TunError(f"Error writing to TUN: {e}") from e
 
-    def get_ip_header_info(self, data: bytes) -> dict | None:
+    def get_ip_header_info(self, data: bytes) -> dict[str, int | str] | None:
         """Parse basic IP header information from a raw packet.
 
         Returns dict with src_ip, dst_ip, protocol, total_length, etc.
@@ -186,7 +186,7 @@ class TunManager:
         src_ip = str(ipaddress.IPv4Address(data[12:16]))
         dst_ip = str(ipaddress.IPv4Address(data[16:20]))
 
-        result: dict = {
+        result: dict[str, int | str] = {
             "version": version,
             "ihl": ihl,
             "total_length": total_length,
@@ -222,19 +222,20 @@ def get_original_dst(sock: object, family: int = 2) -> tuple[str, int] | None:
     """
     try:
         import ipaddress
+        import socket
 
-        if family == 2:  # AF_INET
-            # SO_ORIGINAL_DST = 80
-            data = sock.getsockopt(80, 16, 16)
+        if family in (2, socket.AF_INET):
+            # SO_ORIGINAL_DST is an IPPROTO_IP option, not a socket level.
+            data = sock.getsockopt(socket.SOL_IP, 80, 16)  # type: ignore[attr-defined]
             port = struct.unpack("!H", data[2:4])[0]
             ip = str(ipaddress.IPv4Address(data[4:8]))
             return ip, port
-        elif family == 10:  # AF_INET6
-            # SO_ORIGINAL_DST works for IPv6 too on newer kernels
-            data = sock.getsockopt(80, 16, 16)
+        if family in (10, socket.AF_INET6):
+            # IP6T_SO_ORIGINAL_DST uses a sockaddr_in6 layout.
+            data = sock.getsockopt(socket.IPPROTO_IPV6, 80, 28)  # type: ignore[attr-defined]
             port = struct.unpack("!H", data[2:4])[0]
             ip = str(ipaddress.IPv6Address(data[8:24]))
             return ip, port
-    except (OSError, ValueError, struct.error):
+    except (OSError, ValueError, struct.error, AttributeError):
         pass
     return None

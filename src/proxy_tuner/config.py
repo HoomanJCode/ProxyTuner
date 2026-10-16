@@ -13,7 +13,7 @@ import stat
 import sys
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 # ---------------------------------------------------------------------------
 # Outbound models
@@ -68,7 +68,7 @@ def parse_outbound(name: str, data: dict[str, Any]) -> Outbound:
     # Filter to only known fields
     known = {f.name for f in fields(cls)}
     filtered = {k: v for k, v in data.items() if k in known}
-    return cls(**filtered)
+    return cast(Outbound, cls(**filtered))
 
 
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 ## Overview
 
-ProxyTuner is a Python CLI application that acts as a transparent proxy router. It intercepts network traffic from specific processes or matching certain patterns, and forwards it through configurable proxy outbounds (SOCKS5 or HTTP).
+ProxyTuner is a Python CLI application that routes SOCKS5 and HTTP CONNECT connections through configurable outbounds. Linux also has an opt-in IPv4 TCP redirect mode.
 
 ## System Architecture
 
@@ -35,10 +35,8 @@ ProxyTuner is a Python CLI application that acts as a transparent proxy router. 
 │  ┌─────────────────┐    ┌─────────────────────┐        │
 │  │  Linux Backend  │    │  Windows Backend    │        │
 │  │                 │    │                     │        │
-│  │  • nftables     │    │  • WinDivert        │        │
-│  │  • TUN iface    │    │  • Process filtering│        │
-│  │  • iptables     │    │  • TUN interface    │        │
-│  │  • /proc/pid    │    │                     │        │
+│  │  • iptables     │    │  • Not implemented │        │
+│  │  • SO_ORIGINAL_DST│   │                     │        │
 │  └─────────────────┘    └─────────────────────┘        │
 └────────────────────────┬────────────────────────────────┘
                          │
@@ -192,66 +190,29 @@ class PlatformBackend(ABC):
 
 #### Linux Backend (`platform/linux.py`)
 
-**Approach**: nftables TPROXY + TUN interface
+**Approach**: opt-in IPv4 TCP redirection with iptables NAT `OUTPUT` and
+`REDIRECT`. The kernel keeps the TCP state machine; ProxyTuner reads the
+original destination with `SO_ORIGINAL_DST`, selects an outbound, and relays
+the accepted byte stream.
 
-```
-Application (process X)
-    │ (produces traffic)
-    ▼
-nftables rule: --uid-owner X → REDIRECT to local TUN:port
-    │
-    ▼
-TUN Interface (e.g., 10.0.0.1/24)
-    │
-    ▼
-ProxyTuner TUN reader (reads raw IP packets)
-    │ (extracts src/dst, resolves PID via /proc/net/tcp)
-    ▼
-Rule Engine → picks outbound
-    │
-    ▼
-SOCKS5/HTTP forwarder → upstream proxy → internet
-```
-
-**Key components**:
-- Creates a TUN interface (`ip tuntap add`)
-- Sets up nftables/iptables rules for traffic interception
-- Uses `SO_ORIGINAL_DST` or `/proc/net/tcp` to find real destinations
-- Per-process matching via `SO_MARK` + `--uid-owner` or cgroups
-
-**Fallback**: If TPROXY unavailable, uses `iptables -j REDIRECT` (less clean but wider compatibility).
+The redirect excludes ProxyTuner's UID to prevent upstream loops and excludes
+the configured listener port so explicitly configured proxy clients still
+work. `--bypass-uid` and `--bypass-port` can exclude additional local services.
+The current transparent path handles local TCP only; UDP, IPv6, and
+domain/process matching for redirected sockets are not implemented.
 
 #### Windows Backend (`platform/windows.py`)
 
-**Approach**: WinDivert packet interception
+Transparent interception is not implemented. The platform class is a stub;
+the local SOCKS5/HTTP listener remains available.
 
-```
-Application (process X)
-    │ (produces traffic)
-    ▼
-WinDivert driver (intercepts packets from process X)
-    │ (WinDivert can filter by process ID)
-    ▼
-ProxyTuner packet reader
-    │ (extracts connection info from IP headers)
-    ▼
-Rule Engine → picks outbound
-    │
-    ▼
-SOCKS5/HTTP forwarder → upstream proxy → internet
-```
-
-**Key components**:
-- WinDivert driver for packet capture (requires admin + driver install)
-- Process ID extraction from WinDivert filter parameters
-- TUN interface (via `wintun` adapter) for return traffic
-- `iphlpapi` for connection-to-process mapping
-
-### 6. TUN Interface Manager
+### 6. TUN Interface Helper
 
 **Module**: `proxy_tuner/tun.py`
 
-Manages the TUN/TAP virtual network interface used for transparent proxying.
+Provides low-level TUN creation and packet parsing helpers. Linux transparent
+proxying uses TCP REDIRECT instead: raw TUN packets need a userspace TCP/IP
+stack before they can be forwarded as proxy streams.
 
 ```python
 class TunManager:
@@ -311,18 +272,14 @@ class Forwarder:
 ## Data Flow
 
 ```
-1. User runs `proxy-tuner start`
+1. User runs `proxy-tuner start` for a local listener, or
+   `sudo proxy-tuner start --transparent` on Linux
 2. Config is loaded from disk
-3. Platform backend starts (creates TUN, sets up iptables/WinDivert)
-4. Forwarder loop begins:
-   a. Read packet from TUN
-   b. Parse connection info (src, dst, port)
-   c. Resolve process name from PID
-   d. Evaluate rules → determine outbound
-   e. Connect to outbound proxy
-   f. Forward data bidirectionally
-5. User runs `proxy-tuner stop`
-6. Platform backend stops (removes iptables rules, destroys TUN)
+3. Forwarder starts on the configured loopback port
+4. In Linux transparent mode, the backend installs a scoped iptables redirect
+5. Redirected connections recover their original IP and port, select an
+   outbound, and relay data bidirectionally
+6. User runs `proxy-tuner stop`; redirect rules are removed before shutdown
 ```
 
 ## Configuration Schema

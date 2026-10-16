@@ -45,17 +45,17 @@ class CompiledMatch:
         self.ip: list[str] = match.ip
         self.port: list[int] = match.port
         self.port_range: list[tuple[int, int]] = self._parse_port_ranges(match.port_range)
-        self.url_regex: list[re.Pattern] = self._compile_patterns(match.url_regex)
-        self.domain_regex: list[re.Pattern] = self._compile_patterns(match.domain_regex)
-        self.ip_regex: list[re.Pattern] = self._compile_patterns(match.ip_regex)
+        self.url_regex: list[re.Pattern[str]] = self._compile_patterns(match.url_regex)
+        self.domain_regex: list[re.Pattern[str]] = self._compile_patterns(match.domain_regex)
+        self.ip_regex: list[re.Pattern[str]] = self._compile_patterns(match.ip_regex)
         self.ip_networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
         for cidr in match.ip_cidr:
             with contextlib.suppress(ValueError):
                 self.ip_networks.append(ipaddress.ip_network(cidr, strict=False))
 
     @staticmethod
-    def _compile_patterns(patterns: list[str]) -> list[re.Pattern]:
-        compiled: list[re.Pattern] = []
+    def _compile_patterns(patterns: list[str]) -> list[re.Pattern[str]]:
+        compiled: list[re.Pattern[str]] = []
         for p in patterns:
             with contextlib.suppress(re.error):
                 compiled.append(re.compile(p))
@@ -195,7 +195,7 @@ class RuleEngine:
     def _match_domain(
         self,
         domains: list[str],
-        domain_regex: list[re.Pattern],
+        domain_regex: list[re.Pattern[str]],
         conn: ConnectionInfo,
     ) -> bool:
         """Match domain. Supports wildcard patterns and compiled regex."""
@@ -231,7 +231,7 @@ class RuleEngine:
             return False
         return any(addr in network for network in networks)
 
-    def _match_ip_regex(self, patterns: list[re.Pattern], conn: ConnectionInfo) -> bool:
+    def _match_ip_regex(self, patterns: list[re.Pattern[str]], conn: ConnectionInfo) -> bool:
         """Match IP against regex patterns."""
         if not conn.dst_ip:
             return False
@@ -249,7 +249,7 @@ class RuleEngine:
             return False
         return any(lo <= conn.dst_port <= hi for lo, hi in ranges)
 
-    def _match_url_regex(self, patterns: list[re.Pattern], conn: ConnectionInfo) -> bool:
+    def _match_url_regex(self, patterns: list[re.Pattern[str]], conn: ConnectionInfo) -> bool:
         """Match URL against regex patterns."""
         if not conn.url:
             return False

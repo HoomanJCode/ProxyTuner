@@ -41,7 +41,7 @@ def add_outbound(
 
     try:
         if outbound_type == "socks5":
-            outbound = Socks5Outbound(
+            outbound: Socks5Outbound | HttpOutbound = Socks5Outbound(
                 type="socks5",
                 host=host,
                 port=port,

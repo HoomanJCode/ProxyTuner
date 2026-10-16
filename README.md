@@ -33,13 +33,13 @@ Other    ──►  *               ──► Work Proxy (SOCKS5)
 
 [**V2Portal**](https://github.com/HoomanJCode/V2Portal) is a cross-platform V2Ray CLI client that manages proxy subscriptions, profiles, proxy groups, and persistent local proxy servers backed by sing-box and Xray-core. It handles VLESS, VMess, Trojan, Shadowsocks, WireGuard, Hysteria2, TUIC, and more — importing share links, running multiple inbound servers, and applying domain/IP/geo routing rules inside the managed proxy engines.
 
-V2Portal does **not** steer traffic at the operating-system level. It exposes local SOCKS5 or HTTP inbound ports and expects each application to be configured manually. ProxyTuner completes the picture by sitting in front of V2Portal's inbound ports and providing **per-process, per-domain, per-IP, and per-port routing** with transparent system-wide interception on Linux and Windows.
+V2Portal does **not** steer traffic at the operating-system level. It exposes local SOCKS5 or HTTP inbound ports and expects each application to be configured manually. ProxyTuner can route application-configured SOCKS5 and HTTP connections by domain, IP, and port. On Linux, the opt-in `--transparent` mode redirects local IPv4 TCP connections into the same forwarder.
 
 ```text
 Application traffic
         │
         ▼
-   ProxyTuner          ◄── process-aware, domain/IP/port rules
+   ProxyTuner          ◄── domain/IP/port rules for supported inputs
    (127.0.0.1:10808)
         │
         ├──► V2Portal server :1080  (balanced VLESS/VMess group)
@@ -55,8 +55,8 @@ Application traffic
 | Subscription & profile management | ✔ | ✔ |
 | Proxy groups & load balancing | ✔ | ✔ |
 | Rule-based split routing (engine-level) | ✔ | ✔ |
-| **Per-process traffic steering** | ✘ | ✔ |
-| **Transparent system-wide interception** | ✘ | ✔ (Linux TUN / Windows WinDivert) |
+| **Per-process traffic steering** | ✘ | ✘ (not implemented) |
+| **Transparent local TCP interception** | ✘ | ✔ (Linux iptables REDIRECT; opt-in) |
 | **Cross-engine outbound selection** | ✘ | ✔ (route Chrome to VLESS, curl to HTTP, etc.) |
 | **Connection pooling & statistics** | Basic | ✔ (async pool, live monitor, bench) |
 
@@ -74,43 +74,23 @@ proxy-tuner outbound add us-node --type socks5 --host 127.0.0.1 --port 1081
 
 # 3. Create routing rules.
 
-# CRITICAL: Bypass V2Portal's own traffic to avoid routing loops.
-# V2Portal connects to remote V2Ray/Xray servers — this traffic must
-# go direct so ProxyTuner doesn't try to route it through V2Portal
-# (which would route it through V2Portal again, causing a loop).
-proxy-tuner rule add v2portal-bypass \
-  --process v2portal \
-  --outbound direct \
-  --priority 1
-
-# Also bypass V2Portal's inbound ports so local proxy-to-proxy
-# traffic is not intercepted.
-proxy-tuner rule add v2portal-ports-direct \
-  --port 1080,1081,1082 \
-  --outbound direct \
-  --priority 2
-
-# Keep private networks direct.
+# Keep private networks direct and route other connections through V2Portal.
 proxy-tuner rule add private-direct \
   --ip-cidr "10.0.0.0/8,192.168.0.0/16" \
   --outbound direct \
   --priority 5
-
-# Route browser destinations through a specific V2Portal node.
-proxy-tuner rule add chrome-youtube \
-  --process chrome --domain "*.youtube.com,*.googlevideo.com" \
-  --outbound us-node \
-  --priority 10
 
 # Catch-all: send everything else through the balanced group.
 proxy-tuner rule add default-proxy \
   --outbound vless-balanced \
   --priority 100
 
-# 4. Start ProxyTuner.
-sudo proxy-tuner start   # transparent TUN mode on Linux
+# 4. Start ProxyTuner. Bypass V2Portal's UID and local inbound ports to avoid loops.
+sudo proxy-tuner --config "$HOME/.config/proxy-tuner/config.json" start --transparent \
+  --bypass-uid "$(id -u v2portal)" \
+  --bypass-port 1080 --bypass-port 1081 --bypass-port 1082
 # or
-proxy-tuner start --foreground  # manual proxy mode on any OS
+proxy-tuner start --foreground  # manual mode; configure apps to use this listener
 ```
 
 ### Installation side-by-side
@@ -123,7 +103,7 @@ python -m pip install v2portal proxy-tuner
 
 V2Portal stores its config under `~/.config/v2portal/` and ProxyTuner under `~/.config/proxy-tuner/`. Each tool manages its own config, rules, and runtime state independently.
 
-> **In short:** V2Portal manages *what* proxies are available. ProxyTuner decides *which traffic goes where*. Together they deliver a complete, rule-driven proxy infrastructure from subscription import through transparent per-process routing.
+> **In short:** V2Portal manages *what* proxies are available. ProxyTuner routes app-configured connections and can redirect local TCP traffic on Linux when explicitly enabled.
 
 ## Features
 
@@ -132,12 +112,13 @@ V2Portal stores its config under `~/.config/v2portal/` and ProxyTuner under `~/.
 - **Domain routing:** Wildcard patterns such as `*.example.com` and domain regular expressions.
 - **IP routing:** Exact IPs, IPv4/IPv6 CIDR ranges, and IP regular expressions.
 - **Port routing:** Exact ports and port ranges.
-- **Process-aware rules:** Process names and executable paths are modeled for platform interception support.
+- **Process-aware rules:** Modeled by the rule engine, but not applied by current platform interception.
 - **Local proxy server:** Accepts both SOCKS5 and HTTP CONNECT clients on the same listener, with protocol auto-detection.
 - **Authenticated proxies:** Optional username/password authentication for SOCKS5 and HTTP outbounds.
 - **Async forwarding:** `asyncio`-based connections, bidirectional relay, retries, pooling, DNS caching, and per-outbound statistics.
 - **Operations CLI:** Setup wizard, config validation, hot reload on Unix, shell completions, logs, live monitoring, benchmarking, and `doctor` diagnostics.
-- **Cross-platform codebase:** Local proxy mode is Python-based; Linux and Windows transparent interception backends are under active development.
+- **Linux transparent mode:** Opt-in IPv4 TCP redirection through iptables. UDP, IPv6 interception, and process/domain matching for redirected sockets are not supported by this mode.
+- **Cross-platform codebase:** Local proxy mode is Python-based; Windows and macOS transparent interception are not implemented.
 
 ## Quick Start
 
@@ -317,11 +298,11 @@ ProxyTuner loads a JSON configuration, compiles routing rules, evaluates each in
 
 | Platform | Local SOCKS5/HTTP proxy | Transparent interception | Notes |
 | --- | --- | --- | --- |
-| Linux | Supported | Experimental / in progress | TUN and iptables components require root and system networking tools |
-| Windows | Supported | Experimental / in progress | WinDivert and Administrator privileges are required for interception |
-| macOS | Supported | Not complete | Use the local proxy and configure applications manually |
+| Linux | Supported | Experimental: local IPv4 TCP only | `iptables` and root are required; `--transparent` enables OUTPUT redirection |
+| Windows | Supported | Not implemented | WinDivert backend is a stub |
+| macOS | Supported | Not implemented | pf backend is a stub |
 
-The reliable cross-platform workflow today is to run the local forwarder and configure each application to use `127.0.0.1:10808`. Transparent system-wide routing is not yet production-ready.
+The cross-platform workflow is to run the local forwarder and configure each application to use `127.0.0.1:10808`. Linux local TCP redirection is experimental; it redirects IPv4 TCP connections from other UIDs and leaves ProxyTuner's own upstream connections and its listener port alone. Use `--bypass-uid` and `--bypass-port` for other local proxy services.
 
 ## Configuration
 
@@ -422,10 +403,9 @@ Confirm that the rule has the intended priority, is enabled, and references an e
 
 ### Permission or networking errors on Linux/Windows
 
-Use the local proxy mode first. Transparent interception requires elevated privileges and platform-specific dependencies:
+Use the local proxy mode by configuring applications to use `127.0.0.1:10808`. Linux transparent mode requires root and `iptables`:
 
-- Linux: `iptables`/`iproute2`, a usable TUN device, and root or `sudo`.
-- Windows: WinDivert and an Administrator shell.
+- Linux: `sudo proxy-tuner start --transparent` redirects local IPv4 TCP connections. UDP and IPv6 are not intercepted.
 
 ## Development
 
