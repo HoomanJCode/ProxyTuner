@@ -13,7 +13,6 @@ import logging
 import socket
 import struct
 import time
-from asyncio import CancelledError, InvalidStateError
 from dataclasses import dataclass, field
 
 from proxy_tuner.config import Config
@@ -447,7 +446,7 @@ class Forwarder:
                     await dst.drain()
                     total += len(data)
             except (ConnectionResetError, BrokenPipeError, OSError):
-                return total
+                pass
 
             # A peer may finish sending while still waiting for a response.
             # Forward its FIN without closing the reverse data path.
