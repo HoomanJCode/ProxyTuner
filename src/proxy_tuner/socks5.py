@@ -224,10 +224,23 @@ async def socks5_connect(
             reason = REPLY_NAMES.get(reply_status, f"unknown ({reply_status})")
             raise Socks5RefusedError(f"SOCKS5 CONNECT failed: {reason}")
 
-        # Read the bound address (variable length)
-        # We need to read the remaining address. Read more data.
-        remaining = await asyncio.wait_for(reader.read(64), timeout=timeout)
-        full_reply = reply_header + remaining
+        # Read the bound address exactly. StreamReader.read(n) may return
+        # fewer bytes than requested when a TCP response is split into packets.
+        atyp = reply_header[3]
+        if atyp == SOCKS5_ATYP_IPV4:
+            address_tail = await asyncio.wait_for(reader.readexactly(6), timeout=timeout)
+        elif atyp == SOCKS5_ATYP_IPV6:
+            address_tail = await asyncio.wait_for(reader.readexactly(18), timeout=timeout)
+        elif atyp == SOCKS5_ATYP_DOMAIN:
+            domain_length = await asyncio.wait_for(reader.readexactly(1), timeout=timeout)
+            domain_tail = await asyncio.wait_for(
+                reader.readexactly(domain_length[0] + 2), timeout=timeout
+            )
+            address_tail = domain_length + domain_tail
+        else:
+            raise Socks5Error(f"Unknown address type in reply: {atyp}")
+
+        full_reply = reply_header + address_tail
         bound_host, bound_port, _ = _decode_address(full_reply, offset=3)
 
         return Socks5Connection(

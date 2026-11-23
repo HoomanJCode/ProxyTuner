@@ -199,6 +199,50 @@ class TestTransparentForwarding:
         asyncio.run(_test())
 
 
+    def test_client_half_close_still_receives_remote_response(self) -> None:
+        async def _test() -> None:
+            response = b"response-after-fin"
+
+            async def respond_after_eof(
+                reader: asyncio.StreamReader,
+                writer: asyncio.StreamWriter,
+            ) -> None:
+                try:
+                    request = await reader.read()
+                    writer.write(b"received:" + request + response)
+                    await writer.drain()
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
+            target = await asyncio.start_server(respond_after_eof, "127.0.0.1", 0)
+            target_port = target.sockets[0].getsockname()[1]
+            forwarder = Forwarder(config=_make_config(), transparent=True)
+            await forwarder.start()
+            assert forwarder._server is not None
+            proxy_port = forwarder._server.sockets[0].getsockname()[1]
+
+            try:
+                with patch(
+                    "proxy_tuner.forwarder.get_original_dst",
+                    return_value=("127.0.0.1", target_port),
+                ):
+                    reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+                    writer.write(b"request")
+                    await writer.drain()
+                    writer.write_eof()
+                    received = await asyncio.wait_for(reader.read(), timeout=2)
+                    assert received == b"received:request" + response
+                    writer.close()
+                    await writer.wait_closed()
+            finally:
+                await forwarder.stop()
+                target.close()
+                await target.wait_closed()
+
+        asyncio.run(_test())
+
+
 # ---------------------------------------------------------------------------
 # Rule integration
 # ---------------------------------------------------------------------------

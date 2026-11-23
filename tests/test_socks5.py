@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import struct
 
 import pytest
@@ -13,6 +14,7 @@ from proxy_tuner.socks5 import (
     SOCKS5_REP_SUCCESS,
     _decode_address,
     _encode_address,
+    socks5_connect,
 )
 
 
@@ -81,3 +83,40 @@ class TestDecodeAddress:
         data = struct.pack("!BBBB", 0x05, 0x00, 0x00, 0xFF)
         with pytest.raises(Exception, match="Unknown address type"):
             _decode_address(data, offset=3)
+
+
+
+def test_socks5_connect_reads_fragmented_success_address() -> None:
+    async def _test() -> None:
+        async def proxy(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            try:
+                greeting = await reader.readexactly(3)
+                assert greeting == b"\x05\x01\x00"
+                writer.write(b"\x05\x00")
+                await writer.drain()
+
+                await reader.readexactly(10)  # IPv4 CONNECT request
+                writer.write(b"\x05\x00\x00\x01\x7f")
+                await writer.drain()
+                await asyncio.sleep(0.02)
+                writer.write(b"\x00\x00\x01\x1f\x90")
+                await writer.drain()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        server = await asyncio.start_server(proxy, "127.0.0.1", 0)
+        port = server.sockets[0].getsockname()[1]
+        try:
+            connection = await socks5_connect(
+                "127.0.0.1", port, "1.2.3.4", 80, timeout=2
+            )
+            assert connection.bound_host == "127.0.0.1"
+            assert connection.bound_port == 8080
+            connection.writer.close()
+            await connection.writer.wait_closed()
+        finally:
+            server.close()
+            await server.wait_closed()
+
+    asyncio.run(_test())

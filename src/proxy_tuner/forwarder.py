@@ -435,9 +435,8 @@ class Forwarder:
         async def pipe(
             src: asyncio.StreamReader,
             dst: asyncio.StreamWriter,
-            direction: str,
         ) -> int:
-            """Pipe data from src to dst. Returns bytes transferred."""
+            """Pipe data and propagate EOF as a TCP half-close."""
             total = 0
             try:
                 while True:
@@ -448,45 +447,30 @@ class Forwarder:
                     await dst.drain()
                     total += len(data)
             except (ConnectionResetError, BrokenPipeError, OSError):
-                pass
+                return total
+
+            # A peer may finish sending while still waiting for a response.
+            # Forward its FIN without closing the reverse data path.
+            if dst.can_write_eof():
+                try:
+                    dst.write_eof()
+                    await dst.drain()
+                except (ConnectionResetError, BrokenPipeError, OSError, RuntimeError):
+                    pass
             return total
 
         try:
-            # Run both pipes concurrently
-            to_remote = asyncio.create_task(
-                pipe(client_reader, remote_writer, "client->remote")
-            )
-            to_client = asyncio.create_task(
-                pipe(remote_reader, client_writer, "remote->client")
-            )
+            # Let each direction finish independently so TCP half-closes can
+            # carry the response back after the other side has sent EOF.
+            to_remote = asyncio.create_task(pipe(client_reader, remote_writer))
+            to_client = asyncio.create_task(pipe(remote_reader, client_writer))
+            results = await asyncio.gather(to_remote, to_client, return_exceptions=True)
 
-            # Wait for one direction to finish
-            done, pending = await asyncio.wait(
-                [to_remote, to_client],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
+            def _safe_result(result: int | BaseException) -> int:
+                return result if isinstance(result, int) else 0
 
-            # Cancel the other direction
-            for task in pending:
-                task.cancel()
-
-            # Collect stats — must handle InvalidStateError from
-            # Python 3.14 asyncio where cancelled futures may not be set.
-            def _safe_result(t: asyncio.Task[int]) -> int:
-                try:
-                    if t.cancelled():
-                        return 0
-                    if not t.done():
-                        return 0
-                    return t.result()
-                except (InvalidStateError, RuntimeError, CancelledError):
-                    return 0
-
-            # Give cancelled tasks a moment to finalize
-            await asyncio.sleep(0)
-
-            sent = _safe_result(to_remote)
-            received = _safe_result(to_client)
+            sent = _safe_result(results[0])
+            received = _safe_result(results[1])
             stats = self.outbound_manager.get_stats(outbound_name)
             stats.record_bytes(sent, received)
             self.stats.bytes_sent += sent
