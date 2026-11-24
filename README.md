@@ -115,7 +115,7 @@ V2Portal stores its config under `~/.config/v2portal/` and ProxyTuner under `~/.
 - **Process-aware rules:** Modeled by the rule engine, but not applied by current platform interception.
 - **Local proxy server:** Accepts both SOCKS5 and HTTP CONNECT clients on the same listener, with protocol auto-detection.
 - **Authenticated proxies:** Optional username/password authentication for SOCKS5 and HTTP outbounds.
-- **Async forwarding:** `asyncio`-based connections, bidirectional relay, retries, pooling, DNS caching, and per-outbound statistics.
+- **Async forwarding:** `asyncio`-based connections, bidirectional relay with TCP half-close support, retries, pooling, DNS caching, and per-outbound statistics. SOCKS5 reply addresses are read correctly even when split across TCP packets.
 - **Operations CLI:** Setup wizard, config validation, hot reload on Unix, shell completions, logs, live monitoring, benchmarking, and `doctor` diagnostics.
 - **Linux transparent mode:** Opt-in IPv4 TCP redirection through iptables. UDP, IPv6 interception, and process/domain matching for redirected sockets are not supported by this mode.
 - **Cross-platform codebase:** Local proxy mode is Python-based; Windows and macOS transparent interception are not implemented.
@@ -414,10 +414,11 @@ git clone https://github.com/HoomanJCode/ProxyTuner.git
 cd ProxyTuner
 python -m pip install -e ".[dev]"
 
-# Run the test suite
-pytest tests/ -v
+# Run all configured checks: lint, type-check, and tests
+make check
 
-# Lint and type-check
+# Or run individual checks
+pytest tests/ -v
 ruff check src/ tests/
 mypy src/proxy_tuner/ --ignore-missing-imports
 ```
